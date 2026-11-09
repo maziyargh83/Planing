@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gaam-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--disable-warning=ExperimentalWarning",
+        "--env-file-if-exists=.env",
+        "src/server/main.ts"
+      ],
+      "env": {
+        "GAAM_DB": "/Users/maziyar.gholami/.gaam/demo.db",
+        "GAAM_PORT": "4799"
+      },
+      "port": 4799
+    },
+    {
+      "name": "gaam",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--disable-warning=ExperimentalWarning",
+        "--env-file-if-exists=.env",
+        "src/server/main.ts"
+      ],
+      "port": 4777
+    }
+  ]
+}
