@@ -44,13 +44,30 @@ function hydrate(row: unknown): Doc {
 	return d;
 }
 
+const UNREADABLE = "متن این فایل قابل استخراج نبود (مثلاً PDF یا تصویر). خلاصه‌اش را بنویس یا متنش را بچسبان تا دستیار بتواند از آن استفاده کند.";
+
+// PDFKit through JXA ships with macOS, so PDFs need no extra dependency.
+const PDF_JXA = `ObjC.import("PDFKit");
+function run(argv) {
+	const doc = $.PDFDocument.alloc.initWithURL($.NSURL.fileURLWithPath(argv[0]));
+	if (!doc || doc.isNil()) return "";
+	const s = doc.string;
+	return s.isNil() ? "" : s.js;
+}`;
+
 /** Best-effort text from a file on disk. Returns null when the format can't be read locally. */
 export async function extractText(file: string): Promise<string | null> {
 	const ext = extname(file).toLowerCase();
 	if (TEXT_EXT.has(ext)) return readFileSync(file, "utf8").slice(0, MAX_BODY);
-	if (TEXTUTIL_EXT.has(ext) && process.platform === "darwin") {
+	if (process.platform !== "darwin") return null;
+	if (TEXTUTIL_EXT.has(ext)) {
 		const { stdout } = await run("textutil", ["-convert", "txt", "-stdout", file], { maxBuffer: 32 * 1024 * 1024 });
 		return stdout.slice(0, MAX_BODY);
+	}
+	if (ext === ".pdf") {
+		const { stdout } = await run("osascript", ["-l", "JavaScript", "-e", PDF_JXA, file], { maxBuffer: 32 * 1024 * 1024 });
+		// A scanned PDF has no text layer; treat it like any unreadable file.
+		return stdout.trim() ? stdout.slice(0, MAX_BODY) : null;
 	}
 	return null;
 }
@@ -170,13 +187,31 @@ export class Knowledge {
 			title: meta.title ?? name.replace(/\.[^.]+$/, ""),
 			kind: meta.kind ?? (/meeting|جلسه|1on1|۱:۱|sync/i.test(name) ? "meeting" : extname(name).match(/csv|tsv|json/i) ? "data" : "doc"),
 			body: text,
-			summary: text ? null : "متن این فایل قابل استخراج نبود (مثلاً PDF یا تصویر). خلاصه‌اش را بنویس یا متنش را بچسبان تا دستیار بتواند از آن استفاده کند.",
+			summary: text ? null : UNREADABLE,
 			source,
 			file_path: stored,
 			project: meta.project,
 			people: meta.people,
 			tags: meta.tags,
 		});
+	}
+
+	/**
+	 * Retries text extraction for stored files that have no body yet, e.g. PDFs
+	 * uploaded before Gaam could read them. Returns the ids it filled in.
+	 */
+	async backfillText() {
+		const rows = this.p.all<{ id: number; file_path: string; summary: string | null }>(
+			"select id, file_path, summary from docs where body is null and file_path is not null",
+		);
+		const filled: number[] = [];
+		for (const row of rows.map((r) => plain<{ id: number; file_path: string; summary: string | null }>(r))) {
+			const text = await extractText(row.file_path).catch(() => null);
+			if (!text) continue;
+			this.save({ id: row.id, body: text, ...(row.summary === UNREADABLE ? { summary: null } : {}) });
+			filled.push(row.id);
+		}
+		return filled;
 	}
 
 	remove(id: number) {

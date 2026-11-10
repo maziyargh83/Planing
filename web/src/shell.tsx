@@ -1,6 +1,7 @@
 import { Link, Outlet } from "@tanstack/solid-router";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-solid";
-import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createResource } from "./live.ts";
 
 import * as Drawer from "~/components/ui/drawer";
 import * as SegmentGroup from "~/components/ui/segment-group";

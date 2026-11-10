@@ -2,7 +2,8 @@
  * Friendly form building blocks. Every field says what it is for, offers the
  * likely answers as one-tap choices, and shows dates in the Persian calendar.
  */
-import { createMemo, createResource, createSignal, For, type JSX, onCleanup, Show } from "solid-js";
+import { createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js";
+import { createResource } from "../live.ts";
 import { createStore } from "solid-js/store";
 
 import * as Popover from "~/components/ui/popover";
@@ -366,21 +367,91 @@ export function PersonField(props: { value: string | null | undefined; onChange:
 	);
 }
 
-// ── Inline title ───────────────────────────────────────────────────────────
+// ── Inline editing ─────────────────────────────────────────────────────────
 
-export function TitleField(props: { value: string; onSave: (v: string) => void; size?: "lg" | "xl" }) {
+/**
+ * Text that edits in place: it reads like text, shows a pencil on hover, and
+ * saves when you leave it. Enter saves (⌘Enter when multiline), Esc reverts.
+ */
+export function Inline(props: {
+	value: string | null | undefined;
+	onSave: (v: string) => unknown;
+	placeholder?: string;
+	multiline?: boolean;
+	size?: "sm" | "md" | "lg" | "xl";
+	label?: string;
+	ltr?: boolean;
+	/** Empty saves are ignored (for titles). */
+	required?: boolean;
+}) {
+	const [flash, setFlash] = createSignal(false);
+	const commit = async (el: HTMLTextAreaElement) => {
+		const v = el.value.trim();
+		if (v === (props.value ?? "").trim()) return;
+		if (!v && props.required) return void (el.value = props.value ?? "");
+		await autosave(async () => props.onSave(v));
+		setFlash(true);
+		setTimeout(() => setFlash(false), 900);
+	};
 	return (
-		<div class="titlef" classList={{ xl: props.size === "xl" }}>
+		<div class={`inl inl-${props.size ?? "md"}`} classList={{ multi: props.multiline, ltr: props.ltr, saved: flash() }}>
 			<textarea
 				rows="1"
-				value={props.value}
-
-				onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
-				onChange={(e) => e.currentTarget.value.trim() && e.currentTarget.value !== props.value && props.onSave(e.currentTarget.value.trim())}
+				aria-label={props.label ?? props.placeholder}
+				placeholder={props.placeholder}
+				value={props.value ?? ""}
+				onKeyDown={(e) => {
+					const el = e.currentTarget;
+					if (e.key === "Escape") {
+						el.value = props.value ?? "";
+						el.blur();
+					} else if (e.key === "Enter" && !e.isComposing && (!props.multiline || e.metaKey || e.ctrlKey)) {
+						e.preventDefault();
+						el.blur();
+					}
+				}}
+				onBlur={(e) => void commit(e.currentTarget)}
 			/>
-			<span class="titlef-pen" aria-hidden="true">
+			<span class="inl-pen" aria-hidden="true">
 				✎
 			</span>
+		</div>
+	);
+}
+
+export function TitleField(props: { value: string; onSave: (v: string) => void; size?: "lg" | "xl" }) {
+	return <Inline value={props.value} onSave={props.onSave} size={props.size ?? "lg"} required label="عنوان" />;
+}
+
+/** A number with − / + buttons; the middle can also be typed into. */
+export function Stepper(props: { value: number | null | undefined; onChange: (v: number | null) => unknown; step?: number; min?: number; label?: string; placeholder?: string }) {
+	const step = () => props.step ?? 1;
+	const set = (v: number | null) => {
+		if (v != null && props.min != null) v = Math.max(props.min, v);
+		if (v !== (props.value ?? null)) void autosave(async () => props.onChange(v));
+	};
+	return (
+		<div class="numstep" role="group" aria-label={props.label}>
+			<button type="button" aria-label="کمتر" onClick={() => set((props.value ?? 0) - step())}>
+				−
+			</button>
+			<input
+				inputmode="decimal"
+				aria-label={props.label}
+				placeholder={props.placeholder ?? "—"}
+				value={props.value == null ? "" : fa(props.value)}
+				onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+				onBlur={(e) => {
+					// Accept Persian digits too.
+					const raw = e.currentTarget.value.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٬,]/g, "").replace("٫", ".").trim();
+					const n = raw === "" ? null : Number(raw);
+					if (n == null || Number.isFinite(n)) set(n);
+					e.currentTarget.value = props.value == null ? "" : fa(props.value);
+				}}
+			/>
+			<button type="button" aria-label="بیشتر" onClick={() => set((props.value ?? 0) + step())}>
+				+
+			</button>
 		</div>
 	);
 }

@@ -92,10 +92,10 @@ export function cleanEnv(): NodeJS.ProcessEnv {
 }
 
 /** Runs a CLI and hands each JSON line of stdout to onLine. Rejects with the tail of stderr on failure. */
-export function jsonLines(bin: string, args: string[], signal: AbortSignal, stdin: string, onLine: (line: Record<string, unknown>) => void) {
+export function jsonLines(bin: string, args: string[], signal: AbortSignal, stdin: string, onLine: (line: Record<string, unknown>) => void, env: Record<string, string> = {}) {
 	mkdirSync(AGENT_CWD, { recursive: true });
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(bin, args, { cwd: AGENT_CWD, env: cleanEnv(), stdio: ["pipe", "pipe", "pipe"] });
+		const child = spawn(bin, args, { cwd: AGENT_CWD, env: { ...cleanEnv(), ...env }, stdio: ["pipe", "pipe", "pipe"] });
 		let stderr = "";
 		let failure: Error | null = null;
 		child.stderr.on("data", (d) => (stderr = (stderr + d).slice(-4000)));
@@ -112,7 +112,9 @@ export function jsonLines(bin: string, args: string[], signal: AbortSignal, stdi
 			try {
 				onLine(parsed);
 			} catch (error) {
+				// Stop the agent too: whatever it does next is built on a broken start.
 				failure = error as Error;
+				child.kill("SIGTERM");
 			}
 		});
 		child.on("error", reject);

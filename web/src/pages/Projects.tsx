@@ -1,5 +1,7 @@
 import { Btn, Choice, Panel, Tag, TextInput } from "~/components/app.tsx";
-import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
+import { Inline } from "~/components/form.tsx";
+import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createResource } from "../live.ts";
 import * as Tabs from "~/components/ui/tabs";
 
 import { type Ask, fa, type Goal, rpc, SCOPE_FA, STAGE_FA, STAGES, STATUS_FA, type Task, version } from "../api.ts";
@@ -115,7 +117,7 @@ export function ProjectPage(props: { projectKey: string }) {
 						<div class="row small faint" style={{ "margin-bottom": "6px" }}>
 							<a href="#/projects">پروژه‌ها</a> / <span class="ltr">{p().key}</span>
 						</div>
-						<input class="inline-edit" style={{ "font-size": "26px", "font-weight": 800 }} value={p().title} onChange={(e) => save({ title: e.currentTarget.value })} />
+						<Inline size="xl" required label="نام پروژه" value={p().title} onSave={(v) => save({ title: v })} />
 						<div class="row wrap" style={{ margin: "12px 0 18px", gap: "12px" }}>
 							<div class="stepper">
 								<For each={STAGES}>
@@ -148,13 +150,11 @@ export function ProjectPage(props: { projectKey: string }) {
 								{([field, label, hint]) => (
 									<Panel style={{ padding: "12px 14px" }}>
 										<div class="field-label">{label}</div>
-										<textarea
-											class="inline-edit"
-											rows="3"
-											style={{ resize: "vertical" }}
-											placeholder={hint}
-											value={(p() as unknown as Record<string, string | null>)[field] ?? ""}
-											onChange={(e) => save({ [field]: e.currentTarget.value })}
+										<Inline
+											multiline
+											placeholder={`＋ ${hint}`}
+											value={(p() as unknown as Record<string, string | null>)[field]}
+											onSave={(v) => save({ [field]: v || null })}
 										/>
 									</Panel>
 								)}

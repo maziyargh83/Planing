@@ -277,3 +277,9 @@ app.get("*", serveStatic({ path: "./web/dist/index.html" }));
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, ({ port }) => {
 	console.log(`گام · Gaam  →  http://localhost:${port}   (MCP: http://localhost:${port}/mcp)`);
 });
+
+// Files saved before Gaam could read their format (PDFs, for one) get their text now.
+void new Knowledge(base)
+	.backfillText()
+	.then((ids) => ids.length && console.log(`Extracted text for docs ${ids.map((id) => `#${id}`).join(", ")}`))
+	.catch(() => {});

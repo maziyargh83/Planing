@@ -1,5 +1,6 @@
 import { Tag } from "~/components/app.tsx";
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createResource } from "./live.ts";
 
 import * as Dialog from "~/components/ui/dialog";
 import { Kbd } from "~/components/ui/kbd";

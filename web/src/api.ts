@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/solid-query";
-import { createSignal } from "solid-js";
+import { createSignal, startTransition } from "solid-js";
 
 import { toaster } from "~/components/ui/toast";
 
@@ -68,9 +68,16 @@ export const queryClient = new QueryClient({
 	defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
 });
 
+/**
+ * Refreshes everything. It runs as a transition so Suspense keeps showing the
+ * current UI while data reloads; otherwise the router's boundary unmounts the
+ * whole app on every save (scroll resets, drawers re-animate, typing is lost).
+ */
 export function bump() {
-	setVersion((v) => v + 1);
-	void queryClient.invalidateQueries();
+	void startTransition(() => {
+		setVersion((v) => v + 1);
+		void queryClient.invalidateQueries();
+	});
 }
 
 export function connectStream() {

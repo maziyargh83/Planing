@@ -66,67 +66,80 @@ export const claudeCode: Provider = {
 		const open = new Map<string, { kind: "text" | "reasoning" | "tool"; id: string; started: number }>();
 		let turn = 0;
 		let errored: string | null = null;
-		await jsonLines(bin, args, ctx.signal, prompt, (line) => {
-			if (typeof line.session_id === "string") sessionId = line.session_id;
-			if (line.type === "stream_event") {
-				const ev = line.event as { type: string; index?: number; content_block?: { type: string; id?: string; name?: string }; delta?: Record<string, string> };
-				if (ev.type === "message_start") {
-					if (turn++ > 0) ctx.emit({ type: "start-step" });
-					open.clear();
-				}
-				const key = String(ev.index);
-				if (ev.type === "content_block_start" && ev.content_block) {
-					const b = ev.content_block;
-					if (b.type === "text") {
-						const id = partId("t");
-						open.set(key, { kind: "text", id, started: Date.now() });
-						ctx.emit({ type: "text-start", id });
-					} else if (b.type === "thinking") {
-						const id = partId("r");
-						open.set(key, { kind: "reasoning", id, started: Date.now() });
-						ctx.emit({ type: "reasoning-start", id });
-					} else if (b.type === "tool_use" && b.id) {
-						open.set(key, { kind: "tool", id: b.id, started: Date.now() });
-						ctx.emit({ type: "tool-input-start", toolCallId: b.id, name: (b.name ?? "").replace(TOOL_PREFIX, "") });
+		await jsonLines(
+			bin,
+			args,
+			ctx.signal,
+			prompt,
+			(line) => {
+				if (typeof line.session_id === "string") sessionId = line.session_id;
+				if (line.type === "system" && line.subtype === "init") {
+					// Without Gaam's tools the model writes fake tool calls as text, so stop instead.
+					const gaam = (line.mcp_servers as { name: string; status: string }[] | undefined)?.find((s) => s.name === "gaam");
+					if (gaam && gaam.status !== "connected") throw new Error(`Claude Code couldn't connect to Gaam's MCP server (${gaam.status}). Try again, or pick another provider.`);
+				} else if (line.type === "stream_event") {
+					const ev = line.event as { type: string; index?: number; content_block?: { type: string; id?: string; name?: string }; delta?: Record<string, string> };
+					if (ev.type === "message_start") {
+						if (turn++ > 0) ctx.emit({ type: "start-step" });
+						open.clear();
 					}
-				} else if (ev.type === "content_block_delta" && ev.delta) {
-					const o = open.get(key);
-					if (!o) return;
-					if (ev.delta.type === "text_delta") ctx.emit({ type: "text-delta", id: o.id, delta: ev.delta.text ?? "" });
-					else if (ev.delta.type === "thinking_delta") ctx.emit({ type: "reasoning-delta", id: o.id, delta: ev.delta.thinking ?? "" });
-					else if (ev.delta.type === "input_json_delta") ctx.emit({ type: "tool-input-delta", toolCallId: o.id, delta: ev.delta.partial_json ?? "" });
-				} else if (ev.type === "content_block_stop") {
-					const o = open.get(key);
-					if (o?.kind === "text") ctx.emit({ type: "text-end", id: o.id });
-					if (o?.kind === "reasoning") ctx.emit({ type: "reasoning-end", id: o.id, ms: Date.now() - o.started });
+					const key = String(ev.index);
+					if (ev.type === "content_block_start" && ev.content_block) {
+						const b = ev.content_block;
+						if (b.type === "text") {
+							const id = partId("t");
+							open.set(key, { kind: "text", id, started: Date.now() });
+							ctx.emit({ type: "text-start", id });
+						} else if (b.type === "thinking") {
+							const id = partId("r");
+							open.set(key, { kind: "reasoning", id, started: Date.now() });
+							ctx.emit({ type: "reasoning-start", id });
+						} else if (b.type === "tool_use" && b.id) {
+							open.set(key, { kind: "tool", id: b.id, started: Date.now() });
+							ctx.emit({ type: "tool-input-start", toolCallId: b.id, name: (b.name ?? "").replace(TOOL_PREFIX, "") });
+						}
+					} else if (ev.type === "content_block_delta" && ev.delta) {
+						const o = open.get(key);
+						if (!o) return;
+						if (ev.delta.type === "text_delta") ctx.emit({ type: "text-delta", id: o.id, delta: ev.delta.text ?? "" });
+						else if (ev.delta.type === "thinking_delta") ctx.emit({ type: "reasoning-delta", id: o.id, delta: ev.delta.thinking ?? "" });
+						else if (ev.delta.type === "input_json_delta") ctx.emit({ type: "tool-input-delta", toolCallId: o.id, delta: ev.delta.partial_json ?? "" });
+					} else if (ev.type === "content_block_stop") {
+						const o = open.get(key);
+						if (o?.kind === "text") ctx.emit({ type: "text-end", id: o.id });
+						if (o?.kind === "reasoning") ctx.emit({ type: "reasoning-end", id: o.id, ms: Date.now() - o.started });
+					}
+				} else if (line.type === "assistant") {
+					const content = (line.message as { content?: { type: string; id?: string; name?: string; input?: unknown }[] }).content ?? [];
+					for (const b of content)
+						if (b.type === "tool_use" && b.id) ctx.emit({ type: "tool-input-available", toolCallId: b.id, name: (b.name ?? "").replace(TOOL_PREFIX, ""), input: b.input });
+				} else if (line.type === "user") {
+					const content = (line.message as { content?: { type: string; tool_use_id?: string; content?: unknown; is_error?: boolean }[] }).content ?? [];
+					for (const b of content) {
+						if (b.type !== "tool_result" || !b.tool_use_id) continue;
+						const text = resultText(b.content);
+						if (b.is_error) ctx.emit({ type: "tool-output-error", toolCallId: b.tool_use_id, error: text });
+						else ctx.emit({ type: "tool-output-available", toolCallId: b.tool_use_id, output: parseMaybe(text) });
+					}
+				} else if (line.type === "result") {
+					const usage = (line.usage ?? {}) as { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+					ctx.emit({
+						type: "usage",
+						usage: {
+							input: usage.input_tokens ?? 0,
+							output: usage.output_tokens ?? 0,
+							cacheRead: usage.cache_read_input_tokens ?? 0,
+							cacheWrite: usage.cache_creation_input_tokens ?? 0,
+							costUsd: typeof line.total_cost_usd === "number" ? line.total_cost_usd : undefined,
+						},
+					});
+					if (line.is_error) errored = String(line.result ?? "Claude Code returned an error");
 				}
-			} else if (line.type === "assistant") {
-				const content = (line.message as { content?: { type: string; id?: string; name?: string; input?: unknown }[] }).content ?? [];
-				for (const b of content)
-					if (b.type === "tool_use" && b.id) ctx.emit({ type: "tool-input-available", toolCallId: b.id, name: (b.name ?? "").replace(TOOL_PREFIX, ""), input: b.input });
-			} else if (line.type === "user") {
-				const content = (line.message as { content?: { type: string; tool_use_id?: string; content?: unknown; is_error?: boolean }[] }).content ?? [];
-				for (const b of content) {
-					if (b.type !== "tool_result" || !b.tool_use_id) continue;
-					const text = resultText(b.content);
-					if (b.is_error) ctx.emit({ type: "tool-output-error", toolCallId: b.tool_use_id, error: text });
-					else ctx.emit({ type: "tool-output-available", toolCallId: b.tool_use_id, output: parseMaybe(text) });
-				}
-			} else if (line.type === "result") {
-				const usage = (line.usage ?? {}) as { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
-				ctx.emit({
-					type: "usage",
-					usage: {
-						input: usage.input_tokens ?? 0,
-						output: usage.output_tokens ?? 0,
-						cacheRead: usage.cache_read_input_tokens ?? 0,
-						cacheWrite: usage.cache_creation_input_tokens ?? 0,
-						costUsd: typeof line.total_cost_usd === "number" ? line.total_cost_usd : undefined,
-					},
-				});
-				if (line.is_error) errored = String(line.result ?? "Claude Code returned an error");
-			}
-		});
+			},
+			// Claude Code connects MCP servers in the background by default, so the first turn
+			// would start with no Gaam tools. Make it wait for the connection.
+			{ MCP_CONNECTION_NONBLOCKING: "false" },
+		);
 		if (errored) throw new Error(errored);
 		return { native: { session: sessionId } };
 	},

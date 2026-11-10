@@ -1,6 +1,7 @@
 import { autosave, DateField, Field, HoursField, Pills, SaveIndicator, ScoreField, TitleField } from "~/components/form.tsx";
 import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
-import { createEffect, createResource, createRoot, createSignal, For, type JSX, on, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createRoot, createSignal, For, type JSX, on, onCleanup, onMount, Show } from "solid-js";
+import { createResource } from "./live.ts";
 import * as Drawer from "~/components/ui/drawer";
 import { confirmAction } from "~/kit.tsx";
 import * as SliderUI from "~/components/ui/slider";

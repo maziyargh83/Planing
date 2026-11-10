@@ -1,4 +1,6 @@
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { createResource } from "../live.ts";
+import { Inline } from "~/components/form.tsx";
 
 import { Btn, Choice, Panel, Tag, TextInput } from "~/components/app.tsx";
 import * as SegmentGroup from "~/components/ui/segment-group";
@@ -415,7 +417,9 @@ export function WorkspaceSettings() {
 						<div class="ws-settings">
 							<div class="row wrap">
 								<span style={{ "font-size": "20px" }}>{w.icon}</span>
-								<input class="inline-edit" style={{ width: "160px", "font-weight": 700 }} value={w.name} onChange={(e) => save(w.id, { name: e.currentTarget.value })} />
+								<div style={{ width: "180px" }}>
+									<Inline required label="نام فضای کار" value={w.name} onSave={(v) => save(w.id, { name: v })} />
+								</div>
 								<Choice
 									size="xs"
 									value={w.kind}

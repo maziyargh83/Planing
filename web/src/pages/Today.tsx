@@ -1,5 +1,7 @@
 import { Btn, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
-import { createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js";
+import { Inline } from "~/components/form.tsx";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createResource } from "../live.ts";
 
 import { type Ask, fa, jalali, rpc, type Task, toast, version } from "../api.ts";
 import { Ice, openTask, setStatus, TaskRow } from "../ui.tsx";
@@ -156,11 +158,11 @@ export function Today() {
 			<div class="hero">
 				<Panel>
 					<h3>🎯 نیت امروز</h3>
-					<input
-						class="inline-edit intention"
+					<Inline
+						size="lg"
 						placeholder="امروز اگر فقط یک کار بشود، چه باشد؟"
-						value={day()?.intention ?? ""}
-						onChange={(e) => rpc("planDay", undefined, { intention: e.currentTarget.value })}
+						value={day()?.intention}
+						onSave={(v) => rpc("planDay", undefined, { intention: v })}
 					/>
 					<div class="row" style={{ "margin-top": "16px", "justify-content": "space-between" }}>
 						<h3 style={{ margin: 0 }}>سه کار مهم</h3>

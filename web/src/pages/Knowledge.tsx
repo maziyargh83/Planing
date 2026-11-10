@@ -1,5 +1,6 @@
 import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
-import { createResource, createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import { createResource } from "../live.ts";
 import { ask, confirmAction, DATE_SUGGESTIONS, todayIso } from "~/kit.tsx";
 
 import { ago, fa, jalali, rpc, toast, version, wsHeaders } from "../api.ts";

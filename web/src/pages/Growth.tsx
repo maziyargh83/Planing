@@ -1,6 +1,8 @@
 import { newDecision, newFollowup, newPerson } from "../flows.ts";
+import { Inline } from "~/components/form.tsx";
 import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
-import { createResource, createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import { createResource } from "../live.ts";
 import { ask, DATE_SUGGESTIONS, todayIso } from "~/kit.tsx";
 
 import { ago, fa, type Goal, jalali, rpc, toast, version, wsHeaders } from "../api.ts";
@@ -311,14 +313,18 @@ function Decisions() {
 							</div>
 							<div class="small muted">{d.advice}</div>
 							<div class="grid g3" style={{ "margin-top": "6px" }}>
-								<input class="inline-edit small" placeholder="گزینه‌ها" value={d.options ?? ""} onChange={(e) => save(d.id, { options: e.currentTarget.value })} />
-								<input class="inline-edit small" placeholder="انتخاب و دلیل" value={d.choice ?? ""} onChange={(e) => save(d.id, { choice: e.currentTarget.value })} />
-								<input
-									class="inline-edit small"
-									placeholder={d.mode === "align_first" ? "⚠️ با چه کسی هماهنگ شد؟" : "به چه کسی خبر دادی؟"}
-									value={d.aligned_with ?? ""}
-									onChange={(e) => save(d.id, { aligned_with: e.currentTarget.value })}
-								/>
+								<div>
+									<div class="ff-label">گزینه‌ها</div>
+									<Inline size="sm" multiline placeholder="＋ چه راه‌هایی داری؟" value={d.options} onSave={(v) => save(d.id, { options: v || null })} />
+								</div>
+								<div>
+									<div class="ff-label">چه انتخاب کردی و چرا؟</div>
+									<Inline size="sm" multiline placeholder="＋ انتخاب و دلیلش" value={d.choice} onSave={(v) => save(d.id, { choice: v || null })} />
+								</div>
+								<div>
+									<div class="ff-label">{d.mode === "align_first" ? "⚠️ با چه کسی هماهنگ شد؟" : "به چه کسی خبر دادی؟"}</div>
+									<Inline size="sm" placeholder="＋ اسم آدم‌ها" value={d.aligned_with} onSave={(v) => save(d.id, { aligned_with: v || null })} />
+								</div>
 							</div>
 						</div>
 					)}
@@ -546,11 +552,12 @@ export function PeoplePage() {
 								</Tag>
 								<span class="faint">هر {fa(p.cadence)} روز</span>
 							</div>
-							<input
-								class="inline-edit small"
-								placeholder="به چه چیزی اهمیت می‌دهد؟ چطور کمکش کنم؟"
-								value={p.notes ?? ""}
-								onChange={(e) => rpc("savePerson", { id: p.id, notes: e.currentTarget.value })}
+							<Inline
+								size="sm"
+								multiline
+								placeholder="＋ به چه چیزی اهمیت می‌دهد؟ چطور کمکش کنم؟"
+								value={p.notes}
+								onSave={(v) => rpc("savePerson", { id: p.id, notes: v || null })}
 							/>
 							<div class="row wrap" style={{ gap: "4px" }}>
 								<For each={ACTIONS}>

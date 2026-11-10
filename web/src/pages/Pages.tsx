@@ -1,7 +1,9 @@
 import { newGoal } from "../flows.ts";
+import { Inline, Stepper } from "~/components/form.tsx";
 import { WorkspaceSettings } from "./Workspaces.tsx";
 import { Btn, Choice, Panel, Tag, TextInput } from "~/components/app.tsx";
-import { createResource, createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import { createResource } from "../live.ts";
 
 import { fa, type Goal, HORIZON_FA, jalali, type Memory, rpc, type Task, toast, TOPIC_FA, version } from "../api.ts";
 import { go, QuickAdd, TaskRow } from "../ui.tsx";
@@ -96,13 +98,17 @@ export function Goals() {
 									</Btn>
 									<span class="small faint">{fa(g.projects)} پروژه</span>
 								</div>
-								<input class="inline-edit" style={{ "font-size": "18px", "font-weight": 800 }} value={g.title} onChange={(e) => save({ title: e.currentTarget.value })} />
-								<textarea class="inline-edit small muted" rows="2" placeholder="چرا این برایم مهم است؟" value={g.why ?? ""} onChange={(e) => save({ why: e.currentTarget.value })} />
-								<div class="row small">
-									<input class="inline-edit" style={{ flex: 2 }} placeholder="معیار (مثلاً CTR سرچ)" value={g.metric ?? ""} onChange={(e) => save({ metric: e.currentTarget.value })} />
-									<TextInput class="ltr" style={{ width: "80px" }} type="number" title="فعلی" value={g.current ?? ""} onChange={(e) => save({ current: Number(e.currentTarget.value) })} />
-									<span class="faint">/</span>
-									<TextInput class="ltr" style={{ width: "80px" }} type="number" title="هدف" value={g.target ?? ""} onChange={(e) => save({ target: Number(e.currentTarget.value) })} />
+								<Inline size="lg" required label="هدف" value={g.title} onSave={(v) => save({ title: v })} />
+								<Inline size="sm" multiline placeholder="＋ چرا این برایم مهم است؟" value={g.why} onSave={(v) => save({ why: v || null })} />
+								<div class="goal-metric">
+									<div class="ff-label">از کجا بفهمم رسیدم؟</div>
+									<Inline size="sm" placeholder="＋ یک معیار بنویس، مثلاً CTR سرچ" value={g.metric} onSave={(v) => save({ metric: v || null })} />
+									<div class="row small wrap">
+										<span class="faint">الان</span>
+										<Stepper label="عدد فعلی" value={g.current} onChange={(v) => save({ current: v })} />
+										<span class="faint">از</span>
+										<Stepper label="عدد هدف" value={g.target} onChange={(v) => save({ target: v })} />
+									</div>
 								</div>
 								<Show when={g.progress != null}>
 									<div class="row">
@@ -350,7 +356,7 @@ export function MemoryPage() {
 							<For each={g.items}>
 								{(m) => (
 									<div class="row" style={{ padding: "4px 0", "border-bottom": "1px solid var(--line)" }}>
-										<input class="inline-edit" value={m.fact} onChange={(e) => rpc("updateMemory", m.id, { fact: e.currentTarget.value })} />
+										<Inline size="sm" multiline required label="حافظه" value={m.fact} onSave={(v) => rpc("updateMemory", m.id, { fact: v })} />
 										<Tag class="faint" title="منبع">{m.source === "me" ? "من" : m.source}</Tag>
 										<Btn kind="ghost sm danger" onClick={() => rpc("forget", m.id)}>
 											✕
