@@ -21,7 +21,7 @@ export interface ToolResult {
 }
 
 /** Tools that change or remove data the user may care about; API-driven providers ask before running them. */
-const DESTRUCTIVE = new Set(["task_delete", "doc_delete", "memory_forget", "jira_import"]);
+const DESTRUCTIVE = new Set(["task_delete", "doc_delete", "memory_forget", "jira_import", "memory_review", "memory_save", "workflow_publish", "graph_publish", "memory_extract"]);
 
 export function needsApproval(name: string, input: unknown): boolean {
 	if (DESTRUCTIVE.has(name)) return true;

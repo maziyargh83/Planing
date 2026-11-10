@@ -1,3 +1,7 @@
+import { MemoryService } from "../integrations/memory-service.ts";
+import { Recall } from "../retrieval/recall.ts";
+import { MemoryReview } from "./memory.ts";
+import { Workflows, type WorkflowKind, type WorkflowAction } from "./workflows.ts";
 import { type Db, tx } from "./db.ts";
 import {
 	type Ask,
@@ -944,10 +948,16 @@ export class Planner {
 		return plain(this.one("select * from memories where id = ?", id));
 	}
 
-	updateMemory(id: number, patch: { topic?: MemoryTopic; fact?: string }): Memory {
+	updateMemory(id: number, patch: { topic?: MemoryTopic; fact?: string; source?: string }): Memory {
 		if (!this.one("select 1 from memories where id = ?", id)) throw new GaamError("NOT_FOUND", `Memory #${id} does not exist.`);
-		this.patch("memories", id, { ...patch });
-		this.log("memory.revised", "memory", id, patch.fact ?? "");
+		tx(this.db, () => {
+			const now = NOW();
+			this.run("update memory_history set valid_until=? where memory_id=? and valid_until is null", now, id);
+			this.patch("memories", id, { ...patch });
+			const revised = this.one<Memory>("select * from memories where id=?", id)!;
+			this.insert("memory_history", { memory_id: id, fact: revised.fact, topic: revised.topic, source: revised.source, valid_from: now, actor: this.actor });
+			this.log("memory.revised", "memory", id, patch.fact ?? "");
+		});
 		return plain(this.one("select * from memories where id = ?", id));
 	}
 
@@ -965,6 +975,29 @@ export class Planner {
 			...(topic ? [topic] : []),
 		).map((m) => plain<Memory>(m));
 	}
+
+
+	memoryServiceStatus() { return new MemoryService(this).status(); }
+	memoryExtract(text: string, source: string) { return new MemoryService(this).extract(text, source); }
+	graphPublish(source: string) { return new MemoryService(this).graphPublish(source); }
+	graphSearch(query: string) { return new MemoryService(this).graphSearch(query); }
+	aiTraces() { return this.all(`select * from ai_traces where 1=1${this.ws()} order by created_at desc limit 30`).map((r) => ({ ...r, detail: JSON.parse(String(r.detail)) })); }
+
+	memoryPropose(input: Parameters<MemoryReview["propose"]>[0]) { return new MemoryReview(this).propose(input); }
+	memoryProposals() { return new MemoryReview(this).list(); }
+	memoryReview(id: number, accept: boolean) { return new MemoryReview(this).review(id, accept); }
+	memoryHistory(id: number) {
+		if (!this.one("select 1 from memories where id=?", id)) throw new GaamError("NOT_FOUND", "Memory not found. Call memory_list.");
+		return this.all("select * from memory_history where memory_id=? order by id", id).map((r) => ({ ...r }));
+	}
+	recallSearch(query: string, limit = 8) { return new Recall(this).search(query, limit); }
+	recallSource(id: string) { return new Recall(this).source(id); }
+	recallStatus() { return new Recall(this).status(); }
+	recallReindex() { return new Recall(this).reindex(); }
+	workflowCreate(input: { kind: WorkflowKind; title: string; query: string }) { return new Workflows(this).create(input); }
+	workflowGet(id: number) { return new Workflows(this).get(id); }
+	workflowList() { return new Workflows(this).list(); }
+	workflowAdvance(id: number, action: WorkflowAction, draft?: string) { return new Workflows(this).advance(id, action, draft); }
 
 	// ── Search and activity ──────────────────────────────────────────────────
 

@@ -17,11 +17,14 @@
     "seed": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/seed.ts",
     "test": "node --disable-warning=ExperimentalWarning --test 'src/**/*.test.ts' 'web/src/**/*.test.ts'",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
-    "prepare": "panda codegen"
+    "prepare": "panda codegen",
+    "eval": "promptfoo eval --config evals/promptfooconfig.yaml --no-cache",
+    "eval:semantic": "promptfoo eval --config evals/promptfoo.semantic.yaml --no-cache"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",
     "@hono/node-server": "^1.19.0",
+    "@lancedb/lancedb": "^0.41.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "hono": "^4.13.17",
     "zod": "^4.6.7"
@@ -36,6 +39,7 @@
     "@tanstack/solid-virtual": "3.13.53",
     "@types/node": "^24",
     "lucide-solid": "^1.70.0",
+    "promptfoo": "^0.125.1",
     "solid-js": "^1.9.18",
     "typescript": "^5.9.0",
     "vite": "^8.3.7",

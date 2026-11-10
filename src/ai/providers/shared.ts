@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path";
 import { createInterface } from "node:readline";
 
 import type { Db } from "../../core/db.ts";
+import type { AiLimits } from "../limits.ts";
 import type { ChatEvent } from "../protocol.ts";
 import type { ToolBridge } from "../tools.ts";
 
@@ -19,6 +20,8 @@ export interface RunContext {
 	system: string;
 	model: string | null;
 	effort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+	/** The user's caps for this turn (output tokens, steps, reasoning display). */
+	limits: AiLimits;
 	/** The user's message with its attached context, as the model should read it. */
 	prompt: string;
 	/** Earlier turns as plain text, for providers without saved native state. */

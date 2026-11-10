@@ -14,8 +14,8 @@ function inline(raw: string): string {
 		return `\u0000${codes.length - 1}\u0000`;
 	});
 	const links: string[] = [];
-	s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, text, url) => {
-		links.push(`<a href="${url}" target="_blank" rel="noreferrer noopener">${text}</a>`);
+	s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|#\/sources\/[A-Za-z0-9%:_-]+)\)/g, (_, text, url) => {
+		links.push(url.startsWith("#/sources/") ? `<a href="${url}" class="md-source">${text}</a>` : `<a href="${url}" target="_blank" rel="noreferrer noopener">${text}</a>`);
 		return `\u0001${links.length - 1}\u0001`;
 	});
 	s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_, pre, url) => {

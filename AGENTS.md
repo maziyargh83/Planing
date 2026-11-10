@@ -64,6 +64,7 @@ How it works:
 - `src/ai/tools.ts` connects Gaam's MCP server in-process for the API providers. Gaam's zod schemas validate every tool call. `needsApproval` lists the tools that pause for the user.
 - `src/ai/assistant.ts` is the runtime. Each run has a sequence-numbered event log; `/api/assistant/:id/stream?after=N` replays from N, so reloading never loses a turn. Provider-native state (the Anthropic transcript, CLI session ids) is saved per thread, append-only. Regenerate and fork cut it back to a prefix and never edit earlier turns.
 - `@`-mentions and page context arrive as `ContextRef`s. `src/ai/context.ts` expands them into an `<attached_context>` block in the user turn and keeps the system prompt stable for caching.
+- **Limits.** `src/ai/limits.ts` holds the user's caps (`ai.*` keys in `settings`): max output tokens and reasoning display (Claude API), max steps (Claude API loop, Claude Code `--max-turns`), a per-turn output-token cap (a hard stop, plus a task budget on models that support it), and daily/monthly budgets. `Assistant.send` and `regenerate` call `assertWithinBudget` first. Dollar budgets count Claude API cost only, since the CLIs bill the user's subscription. The UI is `web/src/pages/AiSettings.tsx` (⚙ in the chat header). Thinking can't be turned off on current Claude models, so the setting only switches the summary between shown and hidden.
 - **Jira is read-only.** `call()` in `src/integrations/jira.ts` refuses anything other than GET unless `GAAM_JIRA_WRITE=1`. Don't add Jira write paths.
 
 ## UI: Park UI on Panda CSS

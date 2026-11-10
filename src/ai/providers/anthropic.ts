@@ -27,8 +27,10 @@ const PRICES: Record<string, [number, number, number]> = {
 
 /** Models that accept the "default" server-side fallback chain on the Claude API. */
 const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1"]);
+/** Models with task budgets (the model sees the countdown and paces itself). Minimum total is 20K. */
+const TASK_BUDGET_MODELS = new Set(["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+const MIN_TASK_BUDGET = 20_000;
 
-const MAX_STEPS = 16;
 const MAX_JSON_RETRIES = 2;
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -80,20 +82,30 @@ export const anthropic: Provider = {
 			: ctx.history.map((h) => ({ role: h.role, content: h.text }));
 		messages.push({ role: "user", content: ctx.prompt });
 
+		const { maxTokens, maxSteps, thinkingDisplay, turnTokens } = ctx.limits;
+		// Thinking can't be turned off on current models; the setting only chooses whether its summary is shown.
+		const taskBudget = turnTokens != null && turnTokens >= MIN_TASK_BUDGET && TASK_BUDGET_MODELS.has(model) ? turnTokens : null;
+		const betas = [...(FALLBACK_MODELS.has(model) ? ["server-side-fallback-2026-07-01"] : []), ...(taskBudget ? ["task-budgets-2026-03-13"] : [])];
+		const outputConfig = {
+			...(ctx.effort ? { effort: ctx.effort } : {}),
+			...(taskBudget ? { task_budget: { type: "tokens" as const, total: taskBudget } } : {}),
+		};
+		let generated = 0;
 		let jsonRetries = 0;
-		for (let step = 0; step < MAX_STEPS; step++) {
+		for (let step = 0; step < maxSteps; step++) {
 			if (step > 0) ctx.emit({ type: "start-step" });
 			const stream = api.beta.messages.stream(
 				{
 					model,
-					max_tokens: 64000,
+					max_tokens: maxTokens,
 					system: ctx.system,
 					tools,
 					messages,
-					thinking: { type: "adaptive", display: "summarized" },
-					...(ctx.effort ? { output_config: { effort: ctx.effort } } : {}),
+					thinking: { type: "adaptive", display: thinkingDisplay },
+					...(Object.keys(outputConfig).length ? { output_config: outputConfig } : {}),
 					cache_control: { type: "ephemeral" },
-					...(FALLBACK_MODELS.has(model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+					...(FALLBACK_MODELS.has(model) ? { fallbacks: "default" as const } : {}),
+					...(betas.length ? { betas } : {}),
 				},
 				{ signal: ctx.signal },
 			);
@@ -147,6 +159,8 @@ export const anthropic: Provider = {
 				},
 			});
 
+			generated += message.usage.output_tokens;
+
 			if (message.stop_reason === "refusal") {
 				messages.push({ role: "assistant", content: message.content });
 				ctx.emit({ type: "error", error: "مدل این درخواست را رد کرد." });
@@ -164,6 +178,20 @@ export const anthropic: Provider = {
 			}
 			messages.push({ role: "assistant", content: message.content });
 			if (!toolUses.length) return { native: messages, finish: message.stop_reason === "max_tokens" ? "length" : "stop" };
+			if (turnTokens != null && generated >= turnTokens) {
+				// The task budget is advisory; this is the hard stop. Requested calls are answered, not run,
+				// so the transcript stays valid for the next turn.
+				for (const use of toolUses) {
+					ctx.emit({ type: "tool-input-available", toolCallId: use.id, name: use.name, input: use.input });
+					ctx.emit({ type: "tool-denied", toolCallId: use.id });
+				}
+				messages.push({
+					role: "user",
+					content: toolUses.map((use): ToolResult => ({ type: "tool_result", tool_use_id: use.id, is_error: true, content: "Not run: this turn reached the user's token limit." })),
+				});
+				ctx.emit({ type: "error", error: `سقف توکن این نوبت (${turnTokens.toLocaleString("fa-IR")}) پر شد. اگر لازم است، «ادامه بده» بنویس یا سقف را در تنظیمات بالا ببر.` });
+				return { native: messages, finish: "length" };
+			}
 
 			const results = await Promise.all(
 				toolUses.map(async (use): Promise<ToolResult> => {

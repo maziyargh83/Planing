@@ -6,3 +6,6 @@ web/dist
 *.db-shm
 .DS_Store
 web/styled-system
+
+*.db.vectors/
+services/memory/__pycache__/

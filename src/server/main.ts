@@ -27,7 +27,8 @@ const HOST = process.env.GAAM_HOST ?? "127.0.0.1";
 const db = openDb();
 const base = new Planner(db, "me");
 const assistant = new Assistant(db);
-const scheduler = new Scheduler(assistant).start();
+const scheduler = new Scheduler(assistant);
+if (process.env.GAAM_SCHEDULER !== "0") scheduler.start();
 
 /** Planner methods the web UI may call through /api/rpc. */
 const PLANNER_METHODS = new Set([
@@ -40,6 +41,9 @@ const PLANNER_METHODS = new Set([
 	"addJournal", "listJournal", "day", "planDay", "startFocus", "stopFocus", "logFocus",
 	"remember", "updateMemory", "forget", "listMemories",
 	"search", "events",
+	"recallSearch", "recallSource", "recallStatus", "recallReindex",
+	"memoryPropose", "memoryProposals", "memoryReview", "memoryHistory", "memoryExtract", "memoryServiceStatus",
+	"graphPublish", "graphSearch", "workflowCreate", "workflowGet", "workflowList", "workflowAdvance", "aiTraces",
 ]);
 
 /** RPC methods beyond the Planner, bound to one request's workspace scope. */
@@ -68,6 +72,8 @@ function extras(me: Planner): Record<string, (...args: never[]) => unknown> {
 	branchName: (task: string) => branchName(me.resolveTask(task)),
 	aiStatus: () => assistant.status(),
 	setSetting: (key: string, value: string | null) => assistant.store.setSetting(key, value),
+	aiLimits: () => assistant.limits(),
+	saveAiLimits: (patch: Parameters<Assistant["saveLimits"]>[0]) => assistant.saveLimits(patch),
 	threads: () => assistant.store.threads(),
 	thread: (id: number) => ({ ...assistant.store.thread(id), running: assistant.running().includes(id) }),
 	deleteThread: (id: number) => assistant.store.deleteThread(id),

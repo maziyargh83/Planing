@@ -201,3 +201,54 @@ test("workspaces keep work and personal apart, and 'all' sees both", async () =>
 	assert.equal(workspaces.find((w: { key: string }) => w.key === "personal").open_tasks, 2);
 	assert.equal(side.key, "DROP");
 });
+
+test("recall tools scope sources, review memories and preserve correction history", async (t) => {
+	const { call, client, db } = await connect();
+	t.after(async () => { await client.close(); db.close(); });
+	const doc = await call("doc_save", { title: "Work meeting evidence", body: "unique_work_evidence commitment" });
+	const result = await call("recall_search", { query: "unique_work_evidence" });
+	assert.equal(result.hits[0].source_id, `docs:${doc.id}`);
+	assert.match(result.hits[0].href, /^#\/sources\//);
+	await call("workspace_use", { workspace: "personal" });
+	assert.equal((await call("recall_search", { query: "unique_work_evidence" })).hits.length, 0);
+	await assert.rejects(call("recall_source", { id: `docs:${doc.id}` }), /NOT_FOUND/);
+	const first = await call("memory_propose", { topic: "preference", fact: "پاسخ کوتاه", source: "user:1" });
+	assert.equal((await call("memory_list")).length, 0);
+	await call("memory_review", { id: first.id, accept: true });
+	const [memory] = await call("memory_list");
+	const correction = await call("memory_propose", { topic: "preference", fact: "پاسخ مفصل", source: "user:2", replaces: memory.id });
+	await call("memory_review", { id: correction.id, accept: true });
+	await call("memory_review", { id: correction.id, accept: true });
+	const history = await call("memory_history", { id: memory.id });
+	assert.equal(history.length, 2);
+	assert.equal(history[0].fact, "پاسخ کوتاه");
+	assert.ok(history[0].valid_until);
+	assert.equal(history[1].fact, "پاسخ مفصل");
+	assert.equal(history[1].valid_until, null);
+	const rejected = await call("memory_propose", { topic: "context", fact: "never accepted", source: "user:3" });
+	await call("memory_review", { id: rejected.id, accept: false });
+	assert.equal((await call("memory_list")).length, 1);
+});
+
+test("workflows resume across MCP clients, validate evidence and publish only once", async (t) => {
+	const { call, client, db } = await connect();
+	t.after(async () => { await client.close(); db.close(); });
+	const doc = await call("doc_save", { title: "Meeting commitment", body: "release_evidence scheduled review" });
+	const w = await call("workflow_create", { kind: "meeting", title: "Prepare", query: "release_evidence" });
+	await assert.rejects(call("workflow_publish", { id: w.id }), /CONFLICT/);
+	const collected = await call("workflow_advance", { id: w.id, action: "collect" });
+	assert.equal(collected.evidence.length, 1);
+	await call("workflow_advance", { id: w.id, action: "pause" });
+	assert.equal((await call("workflow_get", { id: w.id })).status, "paused");
+	await call("workflow_advance", { id: w.id, action: "resume" });
+	await call("workflow_advance", { id: w.id, action: "draft", draft: `Review [evidence](${collected.evidence[0].href}).` });
+	await call("doc_save", { id: doc.id, body: "release_evidence changed" });
+	await assert.rejects(call("workflow_publish", { id: w.id }), /Evidence changed/);
+	await call("workflow_advance", { id: w.id, action: "collect" });
+	await call("workflow_advance", { id: w.id, action: "draft", draft: `Review [evidence](${collected.evidence[0].href}).` });
+	const published = await call("workflow_publish", { id: w.id });
+	assert.equal(published.status, "published");
+	assert.equal((await call("workflow_publish", { id: w.id })).doc_id, published.doc_id);
+	await call("workspace_use", { workspace: "personal" });
+	await assert.rejects(call("workflow_get", { id: w.id }), /NOT_FOUND/);
+});

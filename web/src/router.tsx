@@ -1,3 +1,4 @@
+import { RecallPage, RecallSourcePage } from "./pages/Recall.tsx";
 import { createHashHistory, createRootRoute, createRoute, createRouter, redirect, useParams } from "@tanstack/solid-router";
 
 import { AssistantPage, AutomationsPage } from "./pages/Assistant.tsx";
@@ -30,6 +31,8 @@ const routeTree = root.addChildren([
 		},
 	}),
 	page("/now", NowPage),
+	page("/recall", RecallPage),
+	page("/sources/$id", RecallSourcePage),
 	page("/sky", SkyPage),
 	page("/today", Today),
 	page("/tasks", TasksPage),

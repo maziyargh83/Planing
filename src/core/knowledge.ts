@@ -163,7 +163,7 @@ export class Knowledge {
 	}
 
 	/** Copies a local file into Gaam's file store and indexes its text. */
-	async ingestPath(path: string, meta: { title?: string; kind?: DocKind; project?: string | number | null; people?: string[]; tags?: string[] } = {}) {
+	async ingestPath(path: string, meta: { title?: string; kind?: DocKind; project?: string | number | null; people?: string[]; tags?: string[]; summary?: string | null } = {}) {
 		const full = resolve(path.replace(/^~(?=\/)/, homedir()));
 		if (!full.startsWith(homedir())) throw new GaamError("INVALID", "Only files inside your home folder can be added.");
 		if (!statSync(full).isFile()) throw new GaamError("INVALID", `${path} is not a file.`);
@@ -181,13 +181,18 @@ export class Knowledge {
 		return this.fromStoredFile(stored, name, meta, `upload:${name}`);
 	}
 
-	private async fromStoredFile(stored: string, name: string, meta: { title?: string; kind?: DocKind; project?: string | number | null; people?: string[]; tags?: string[] }, source: string) {
+	private async fromStoredFile(
+		stored: string,
+		name: string,
+		meta: { title?: string; kind?: DocKind; project?: string | number | null; people?: string[]; tags?: string[]; summary?: string | null },
+		source: string,
+	) {
 		const text = await extractText(stored).catch(() => null);
 		return this.save({
 			title: meta.title ?? name.replace(/\.[^.]+$/, ""),
 			kind: meta.kind ?? (/meeting|جلسه|1on1|۱:۱|sync/i.test(name) ? "meeting" : extname(name).match(/csv|tsv|json/i) ? "data" : "doc"),
 			body: text,
-			summary: text ? null : UNREADABLE,
+			summary: meta.summary || (text ? null : UNREADABLE),
 			source,
 			file_path: stored,
 			project: meta.project,

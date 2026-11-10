@@ -7,6 +7,7 @@ import { ago, fa, rpc, toast, version, workspace, wsHeaders } from "../api.ts";
 import { type BotMessage, type ChatMessage, type ContextRef, createChat, type Part, type UserMessage } from "../chat.ts";
 import { keysIn, toolMeta } from "../chat-tools.ts";
 import { ask, confirmAction } from "../kit.tsx";
+import { AiSettingsButton } from "./AiSettings.tsx";
 import { Markdown } from "../markdown.tsx";
 import { go, openTask, route } from "../ui.tsx";
 
@@ -187,6 +188,15 @@ function BotBlock(props: { m: BotMessage; last: boolean; startedAt: number; onAp
 			<For each={props.m.parts}>
 				{(part) => (
 					<Switch>
+						<Match when={part.type === "sources"}>
+							<details class="recall-evidence">
+								<summary>منابع این پاسخ</summary>
+								<For each={(part as Extract<Part, { type: "sources" }>).sources}>
+									{(source) => <a class="recall-source-link" href={source.href}>{source.title}</a>}
+								</For>
+								<Show when={(part as Extract<Part, { type: "sources" }>).degraded}><p class="small faint">جستجوی معنایی در دسترس نبود؛ منابع با جستجوی متنی پیدا شدند.</p></Show>
+							</details>
+						</Match>
 						<Match when={part.type === "text"}>
 							<Markdown text={(part as Extract<Part, { type: "text" }>).text} />
 						</Match>
@@ -503,6 +513,7 @@ export function AssistantPage(props: { initialContext?: ContextRef[]; compact?: 
 							</SegmentGroup.Root>
 						</Show>
 					</Show>
+					<AiSettingsButton />
 				</div>
 				<Show when={current() && !current()!.toolsInGaam}>
 					<div class="chat-note">ابزارها داخل {current()!.label} اجرا می‌شوند؛ کارهای حذفی برایش خاموش است. برای تأیید قدم‌به‌قدم، Claude API را انتخاب کن.</div>

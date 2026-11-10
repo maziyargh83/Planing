@@ -1,0 +1,20 @@
+description: Gaam BGE-M3 bilingual retrieval gate (requires a running Ollama embedding model)
+prompts: ["{{query}}"]
+providers:
+  - id: file://provider.mjs
+    config: {semantic: true}
+defaultTest:
+  vars: {workspace: snappfood}
+  assert:
+    - type: is-json
+    - type: not-contains
+      value: PRIVATE_CANARY_8491
+    - type: contains
+      value: '"mode":"hybrid"'
+tests:
+  - vars: {query: "What did I promise my search lead?"}
+    assert: [{type: contains, value: "جلسه با لید دربارهٔ سرچ"}]
+  - vars: {query: "Why was the release postponed?"}
+    assert: [{type: contains, value: "تصمیم توقف rollout"}]
+  - vars: {query: "کار تمام نشدهٔ هفته و وابستگی به تیم دیگر"}
+    assert: [{type: contains, value: "آمادگی مرور هفته"}]

@@ -1,5 +1,6 @@
+import { allPages } from "./navigation.ts";
 import { Tag } from "~/components/app.tsx";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { createResource } from "./live.ts";
 
 import * as Dialog from "~/components/ui/dialog";
@@ -20,9 +21,11 @@ interface Item {
 }
 
 const [open, setOpen] = createSignal(false);
+const [searchOnly, setSearchOnly] = createSignal(false);
 const [prefill, setPrefill] = createSignal("");
 /** Opens the palette, optionally with text already typed (e.g. "۱:۱ با شقایق فردا"). */
 export const openPalette = (text = "") => {
+	setSearchOnly(false);
 	setPrefill(text);
 	setOpen(true);
 };
@@ -41,18 +44,8 @@ const COMMANDS: Item[] = [
 	{ icon: "☀️", label: "تم روشن", hint: "ظاهر", run: () => setMode("light") },
 ];
 
-const PAGES: Item[] = [
-	["☀️", "امروز", "/today"],
-	["✳️", "دستیار", "/assistant"],
-	["📥", "صندوق ورودی", "/inbox"],
-	["🧩", "پروژه‌ها", "/projects"],
-	["🗂", "برد جیرا (DISC)", "/p/DISC"],
-	["🌱", "رشد و SFPM", "/growth"],
-	["🤝", "آدم‌ها و تیم", "/people"],
-	["📚", "دانش", "/knowledge"],
-	["⚙️", "اتوماسیون", "/automations"],
-	["🔌", "اتصال", "/connect"],
-].map(([icon, label, path]) => ({ icon: icon!, label: label!, hint: "صفحه", run: () => go(path!) }));
+const PAGES: Item[] = [...allPages, ["/p/DISC", "🗂", "برد جیرا (DISC)"] as const]
+	.map(([path, icon, label]) => ({ icon, label, hint: "صفحه", run: () => go(path) }));
 
 const ENTITY: Record<string, [string, string]> = {
 	tasks: ["📝", "تسک"],
@@ -122,7 +115,7 @@ export function Palette() {
 	const [people] = createResource(open, () => rpc<Person[]>("people"));
 	let input: HTMLInputElement | undefined;
 
-	const capture = createMemo(() => (query().trim() ? parseCapture(query(), people() ?? []) : null));
+	const capture = createMemo(() => (!searchOnly() && query().trim() ? parseCapture(query(), people() ?? []) : null));
 	createEffect(() => {
 		if (open() && prefill()) {
 			setQuery(prefill());
@@ -143,11 +136,7 @@ export function Palette() {
 				let run = () => {};
 				if (h.entity === "tasks") run = () => openTask(key);
 				else if (h.entity === "projects") run = () => go(`/p/${key}`);
-				else if (h.entity === "docs") run = () => go("/knowledge");
-				else if (h.entity === "people" || h.entity === "followups") run = () => go("/people");
-				else if (h.entity === "memories") run = () => go("/memory");
-				else if (h.entity === "goals") run = () => go("/goals");
-				else if (h.entity === "decisions") run = () => go("/growth");
+				else if (["docs", "people", "followups", "memories", "goals", "decisions", "journal"].includes(h.entity)) run = () => go(`/sources/${h.entity}%3A${h.entity_id}`);
 				return {
 					icon,
 					label: h.title,
@@ -164,7 +153,7 @@ export function Palette() {
 		const c = capture();
 		const head: Item[] = c ? [{ icon: INTENT_FA[c.intent].split(" ")[0]!, label: `ثبت: ${c.text || q}`, hint: "Enter", run: () => commit(c) }] : [];
 		const match = (i: Item) => !q || i.label.includes(q);
-		return [...head, ...found(), ...COMMANDS.filter(match), ...PAGES.filter(match)];
+		return [...head, ...found(), ...(searchOnly() ? [] : COMMANDS.filter(match)), ...PAGES.filter(match)];
 	});
 
 	const run = async (item?: Item) => {
@@ -188,60 +177,68 @@ export function Palette() {
 			<Dialog.Backdrop />
 			<Dialog.Positioner>
 				<Dialog.Content class="palette2">
-					<input
-						ref={input}
-						class="palette-input"
-						placeholder="هر چیزی بنویس: «فردا ۱:۱ با شقایق»، «پیگیری با شایان: … تا پنجشنبه»، «درس: …»، یا جستجو"
-						value={query()}
-						onInput={(e) => setQuery(e.currentTarget.value)}
-						onKeyDown={(e) => {
-							if (e.key === "ArrowDown") (e.preventDefault(), setSel((s) => Math.min(s + 1, items().length - 1)));
-							if (e.key === "ArrowUp") (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)));
-							if (e.key === "Enter" && !e.isComposing) (e.preventDefault(), run(items()[sel()]));
-						}}
-					/>
-					<Show when={capture()}>
-						{(c) => (
-							<div class="capture-preview">
-								<Tag class="accent">{INTENT_FA[c().intent]}</Tag>
-								<Show when={c().text}>
-									<b>{c().text}</b>
-								</Show>
-								<Show when={c().person}>
-									<Tag>👤 {c().person!.name}</Tag>
-								</Show>
-								<Show when={c().dueLabel}>
-									<Tag>📅 {c().dueLabel}</Tag>
-								</Show>
-								<Show when={c().priority != null}>
-									<Tag class="P0">P{c().priority}</Tag>
-								</Show>
-								<Show when={c().project}>
-									<Tag class="key">@{c().project}</Tag>
-								</Show>
-								<For each={c().tags}>{(t) => <Tag>#{t}</Tag>}</For>
-							</div>
-						)}
-					</Show>
-					<div class="palette-results">
-						<For each={items()}>
-							{(item, i) => (
-								<div class="hit" classList={{ sel: sel() === i() }} onMouseEnter={() => setSel(i())} onClick={() => run(item)}>
-									<span class="hit-icon">{item.icon}</span>
-									<div style={{ flex: 1, "min-width": 0 }}>
-										<div class="hit-label">{item.label}</div>
-										<Show when={item.html}>
-											<div class="small faint" innerHTML={item.html} />
-										</Show>
-									</div>
-									<Tag>{item.hint}</Tag>
+					{/* Loading data here must not suspend the router's root boundary: that tears down the dialog's open-state effects (Esc, outside click, focus). */}
+					<Suspense>
+						<div class="palette-mode" role="group" aria-label="روش استفاده">
+							<button type="button" aria-pressed={!searchOnly()} onClick={() => { setSearchOnly(false); setSel(0); input?.focus(); }}>ثبت سریع</button>
+							<button type="button" aria-pressed={searchOnly()} onClick={() => { setSearchOnly(true); setSel(0); input?.focus(); }}>جستجو و رفتن به صفحه</button>
+						</div>
+						<input
+							ref={input}
+							class="palette-input"
+							aria-label={searchOnly() ? "جستجو" : "ثبت سریع"}
+							placeholder={searchOnly() ? "نام کار، سند یا صفحه را بنویس…" : "مثلاً پیگیری با شایان تا پنجشنبه…"}
+							value={query()}
+							onInput={(e) => setQuery(e.currentTarget.value)}
+							onKeyDown={(e) => {
+								if (e.key === "ArrowDown") (e.preventDefault(), setSel((s) => Math.min(s + 1, items().length - 1)));
+								if (e.key === "ArrowUp") (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)));
+								if (e.key === "Enter" && !e.isComposing) (e.preventDefault(), run(items()[sel()]));
+							}}
+						/>
+						<Show when={capture()}>
+							{(c) => (
+								<div class="capture-preview">
+									<Tag class="accent">{INTENT_FA[c().intent]}</Tag>
+									<Show when={c().text}>
+										<b>{c().text}</b>
+									</Show>
+									<Show when={c().person}>
+										<Tag>👤 {c().person!.name}</Tag>
+									</Show>
+									<Show when={c().dueLabel}>
+										<Tag>📅 {c().dueLabel}</Tag>
+									</Show>
+									<Show when={c().priority != null}>
+										<Tag class="P0">P{c().priority}</Tag>
+									</Show>
+									<Show when={c().project}>
+										<Tag class="key">@{c().project}</Tag>
+									</Show>
+									<For each={c().tags}>{(t) => <Tag>#{t}</Tag>}</For>
 								</div>
 							)}
-						</For>
-					</div>
-					<div class="palette-foot small faint">
-						<Kbd>↵</Kbd> اجرا · <Kbd>↑↓</Kbd> انتخاب · <Kbd>Esc</Kbd> بستن · پیشوندها: پیگیری، منتظرم، درس:، برد:، تصمیم:، یادت باشه:، ایده: · #تگ !p1 @DISC فردا/شنبه
-					</div>
+						</Show>
+						<div class="palette-results">
+							<For each={items()} fallback={<p class="muted palette-empty">نتیجه‌ای پیدا نشد.</p>}>
+								{(item, i) => (
+									<div class="hit" classList={{ sel: sel() === i() }} onMouseEnter={() => setSel(i())} onClick={() => run(item)}>
+										<span class="hit-icon">{item.icon}</span>
+										<div style={{ flex: 1, "min-width": 0 }}>
+											<div class="hit-label">{item.label}</div>
+											<Show when={item.html}>
+												<div class="small faint" innerHTML={item.html} />
+											</Show>
+										</div>
+										<Tag>{item.hint}</Tag>
+									</div>
+								)}
+							</For>
+						</div>
+						<div class="palette-foot small faint">
+							<Kbd>↵</Kbd> اجرا · <Kbd>↑↓</Kbd> انتخاب · <Kbd>Esc</Kbd> بستن
+						</div>
+					</Suspense>
 				</Dialog.Content>
 			</Dialog.Positioner>
 		</Dialog.Root>

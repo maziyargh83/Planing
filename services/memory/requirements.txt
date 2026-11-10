@@ -1,0 +1,5 @@
+# Optional service only; the Node application does not require Python.
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+mem0ai>=0.1.118,<2
+graphiti-core>=0.24,<1

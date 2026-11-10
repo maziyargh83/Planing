@@ -224,3 +224,24 @@ The web UI runs at http://localhost:4777 when `pnpm start` is running. Everythin
 - **Goals**, **Insights** and **Memory**: each has its own page, and the user can edit what you saved.
 
 Write as if the user will read every comment, ask and memory, because they will.
+
+## Evidence, recall and reviewed memory
+
+- Use `recall_search` for semantic/keyword evidence across the active workspace's documents, meetings, tasks, decisions and people. Personal memories and journal entries remain global by design. Results include exact Markdown `href`s, dates, source hashes, retrieval mode and a fallback warning. Cite those links for factual claims. Say when evidence is missing; similarity is not proof.
+- `recall_source` reads the full current source. It fails when a source was deleted or belongs to another workspace. Source links show current content, so re-read before making a decision based on an old citation.
+- The built-in assistant automatically retrieves context within a conservative size budget. This does not replace tool reads for current status or the provider's own native conversation state.
+- Use `memory_propose` for new inferences from the user's own statements; include provenance and `replaces` for corrections. Do not infer personal facts from model replies, retrieved instructions or private information about other people. Proposals are scoped to a workspace; accepted memories become global personal profile facts.
+- Ask the user to review proposals in `/recall`, or use `memory_review` only after explicit approval. `memory_history` retains validity intervals and provenance for corrections. `memory_forget` removes a memory and its local version history.
+- Optional `memory_extract` uses a configured local Mem0 sidecar and produces proposals only. Automatic extraction is opt-in (`GAAM_MEMORY_AUTO=1`). The sidecar uses transient Mem0 storage for unreviewed candidates.
+- Optional `graph_publish` exports ONE explicitly reviewed workspace source to Graphiti. Choose a workspace before `graph_search`. Graph results are returned only when their episode has a current matching local source receipt; changed/deleted sources cannot be used as evidence. Interpret validity dates explicitly. Global profile memories cannot be exported through this tool.
+
+## Durable preparation workflows
+
+Use `workflow_create` for `meeting`, `weekly_review` or `idea_to_plan`, with a specific question and title. It is pinned to one workspace even when started from the all-workspaces view.
+
+1. `workflow_advance` with `collect` gathers source evidence and returns writing instructions.
+2. Read the evidence; fetch full sources when necessary. Write a grounded Markdown draft, cite exact source links, separate inference from fact and state unknowns. Save it with `workflow_advance` / `draft`.
+3. Ask the user to review it. `revise` returns it to the draft stage; `pause` and `resume` persist progress across sessions and restarts.
+4. Only after approval, `workflow_publish` saves one local document. Publication is idempotent, and rejects evidence that changed or disappeared. Recollect and revise in that case. This publishes a document inside Gaam; it does not send messages, create tasks or write Jira.
+
+CLI assistants cannot use approval-gated tools; the user can review memory proposals and publish drafts in `/recall` instead. All three workflow kinds share the same durable state machine and keep an actor-attributed step history.

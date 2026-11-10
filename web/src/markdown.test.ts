@@ -16,3 +16,10 @@ test("tables, code fences, nested lists and keys", () => {
 	assert.match(html, /const a = 1 &lt; 2;/);
 	assert.equal((html.match(/<ul>/g) ?? []).length, 2);
 });
+
+test("recall citations are internal safe links and arbitrary schemes remain inert", () => {
+	const html = renderMarkdown("[منبع](#/sources/docs%3A12) [bad](javascript:alert(1))");
+	assert.match(html, /href="#\/sources\/docs%3A12"/);
+	assert.ok(!html.includes('href="javascript:'));
+	assert.ok(!renderMarkdown('[x](#/sources/\" onmouseover=\"x)').includes('href="#/sources/'));
+});

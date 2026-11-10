@@ -1,6 +1,7 @@
-import { Link, Outlet } from "@tanstack/solid-router";
+import { NavigationDock } from "./components/NavigationDock.tsx";
+import { Outlet } from "@tanstack/solid-router";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-solid";
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { createResource } from "./live.ts";
 
 import * as Drawer from "~/components/ui/drawer";
@@ -34,64 +35,6 @@ function phase() {
 	if (h >= 9 && h < 16) return "day";
 	if (h >= 16 && h < 20) return "dusk";
 	return "night";
-}
-
-const DOCK = [
-	{ to: "/now", icon: "◉", label: "الان" },
-	{ to: "/tasks", icon: "⋮⋮", label: "مسیر" },
-	{ to: "/sky", icon: "✦", label: "کهکشان" },
-	{ to: "/growth", icon: "🌱", label: "رشد" },
-	{ to: "/people", icon: "🤝", label: "آدم‌ها" },
-] as const;
-
-const MORE = [
-	["/overview", "🌐", "نمای کلی"],
-	["/projects", "🧩", "پروژه‌ها"],
-	["/goals", "🎯", "اهداف"],
-	["/inbox", "📥", "صندوق"],
-	["/knowledge", "📚", "دانش"],
-	["/today", "☀️", "داشبورد روز"],
-	["/assistant", "✳️", "گفتگوها"],
-	["/insights", "📈", "بینش‌ها"],
-	["/memory", "🧠", "حافظه"],
-	["/automations", "⚙️", "اتوماسیون"],
-	["/connect", "🔌", "اتصال"],
-] as const;
-
-function Dock() {
-	const [more, setMore] = createSignal(false);
-	const active = (to: string) => route() === to || (to === "/tasks" && route() === "/tasks");
-	const close = (e: MouseEvent) => !(e.target as HTMLElement).closest(".dock") && setMore(false);
-	onMount(() => document.addEventListener("click", close));
-	onCleanup(() => document.removeEventListener("click", close));
-	return (
-		<nav class="dock" aria-label="ناوبری">
-			<For each={DOCK}>
-				{(d) => (
-					<Link to={d.to} class="dock-item" classList={{ on: active(d.to) }}>
-						<span class="dock-icon">{d.icon}</span>
-						<span class="dock-label">{d.label}</span>
-					</Link>
-				)}
-			</For>
-			<button type="button" class="dock-item" classList={{ on: more() || MORE.some(([to]) => route().startsWith(to)) || route().startsWith("/p/") }} onClick={() => setMore(!more())}>
-				<span class="dock-icon">⋯</span>
-				<span class="dock-label">بیشتر</span>
-			</button>
-			<Show when={more()}>
-				<div class="dock-more">
-					<For each={MORE}>
-						{([to, icon, label]) => (
-							<Link to={to} class="dock-more-item" onClick={() => setMore(false)}>
-								<span>{icon}</span>
-								{label}
-							</Link>
-						)}
-					</For>
-				</div>
-			</Show>
-		</nav>
-	);
 }
 
 interface Nudge {
@@ -141,9 +84,12 @@ function Companion() {
 				<Drawer.Backdrop />
 				<Drawer.Positioner>
 					<Drawer.Content class="companion-sheet">
-						<Show when={open()}>
-							<AssistantPage compact initialContext={[{ type: "page", route: route(), label: "همین صفحه" }]} />
-						</Show>
+						{/* Loading data here must not suspend the router's root boundary: that tears down the dialog's open-state effects (Esc, outside click, focus). */}
+						<Suspense>
+							<Show when={open()}>
+								<AssistantPage compact initialContext={[{ type: "page", route: route(), label: "همین صفحه" }]} />
+							</Show>
+						</Suspense>
 					</Drawer.Content>
 				</Drawer.Positioner>
 			</Drawer.Root>
@@ -188,6 +134,7 @@ export function Shell() {
 				<i class="glow a" />
 				<i class="glow b" />
 			</div>
+			<a class="skip-main" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById("main-content")?.focus(); }}>رفتن به محتوای صفحه</a>
 			<header class="topbar">
 				<button type="button" class="brand2" onClick={() => go("/now")}>
 					<span class="brand-mark">
@@ -197,7 +144,9 @@ export function Shell() {
 					</span>
 					گام
 				</button>
-				<WorkspaceSwitcher />
+				<Suspense>
+					<WorkspaceSwitcher />
+				</Suspense>
 				<button type="button" class="capture2" onClick={() => openPalette()}>
 					<span>＋ یک فکر، یک کار، یک قرار…</span>
 					<kbd>⌘K</kbd>
@@ -206,13 +155,22 @@ export function Shell() {
 				<ActivityButton />
 				<ThemeSwitch />
 			</header>
-			<main class="stage">
-				<Outlet />
+			{/* Each page loads inside its own boundary, so the shell and its drawers never unmount. */}
+			<main class="stage" id="main-content" tabindex="-1">
+				<Suspense>
+					<Outlet />
+				</Suspense>
 			</main>
-			<Dock />
-			<Companion />
-			<TaskDrawer />
-			<Palette />
+			<NavigationDock />
+			<Suspense>
+				<Companion />
+			</Suspense>
+			<Suspense>
+				<TaskDrawer />
+			</Suspense>
+			<Suspense>
+				<Palette />
+			</Suspense>
 		</div>
 	);
 }

@@ -398,6 +398,90 @@ const MIGRATIONS: string[] = [
 	alter table threads add column effort text;
 	alter table threads add column pinned integer not null default 0;
 	`,
+
+	`
+	create table recall_sources (
+		id text primary key, entity text not null, entity_id integer not null,
+		workspace_id integer references workspaces(id), title text not null,
+		body text not null, hash text not null, updated_at text not null, href text not null
+	);
+	create table recall_chunks (
+		id text primary key, source_id text not null references recall_sources(id) on delete cascade,
+		workspace_id integer references workspaces(id), title text not null, body text not null,
+		hash text not null, ordinal integer not null
+	);
+	create index recall_workspace on recall_chunks(workspace_id);
+	create virtual table recall_fts using fts5(id unindexed, title, body, tokenize = 'unicode61');
+	create trigger recall_chunks_ai after insert on recall_chunks begin
+		insert into recall_fts values (new.id, new.title, new.body);
+	end;
+	create trigger recall_chunks_ad after delete on recall_chunks begin
+		delete from recall_fts where id = old.id;
+	end;
+	create table recall_vectors (chunk_id text not null references recall_chunks(id) on delete cascade,
+		model text not null, hash text not null, primary key (chunk_id, model));
+	create trigger recall_docs_update after update on docs begin delete from recall_sources where id = 'docs:' || old.id; end;
+	create trigger recall_docs_delete after delete on docs begin delete from recall_sources where id = 'docs:' || old.id; end;
+	create trigger recall_tasks_update after update on tasks begin delete from recall_sources where id = 'tasks:' || old.id; end;
+	create trigger recall_tasks_delete after delete on tasks begin delete from recall_sources where id = 'tasks:' || old.id; end;
+	create trigger recall_projects_update after update on projects begin delete from recall_sources where id = 'projects:' || old.id; end;
+	create trigger recall_projects_delete after delete on projects begin delete from recall_sources where id = 'projects:' || old.id; end;
+	create trigger recall_goals_update after update on goals begin delete from recall_sources where id = 'goals:' || old.id; end;
+	create trigger recall_goals_delete after delete on goals begin delete from recall_sources where id = 'goals:' || old.id; end;
+	create trigger recall_people_update after update on people begin delete from recall_sources where id = 'people:' || old.id; end;
+	create trigger recall_people_delete after delete on people begin delete from recall_sources where id = 'people:' || old.id; end;
+	create trigger recall_followups_update after update on followups begin delete from recall_sources where id = 'followups:' || old.id; end;
+	create trigger recall_followups_delete after delete on followups begin delete from recall_sources where id = 'followups:' || old.id; end;
+	create trigger recall_decisions_update after update on decisions begin delete from recall_sources where id = 'decisions:' || old.id; end;
+	create trigger recall_decisions_delete after delete on decisions begin delete from recall_sources where id = 'decisions:' || old.id; end;
+	create trigger recall_memories_update after update on memories begin delete from recall_sources where id = 'memories:' || old.id; end;
+	create trigger recall_memories_delete after delete on memories begin delete from recall_sources where id = 'memories:' || old.id; end;
+	create trigger recall_journal_update after update on journal begin delete from recall_sources where id = 'journal:' || old.id; end;
+	create trigger recall_journal_delete after delete on journal begin delete from recall_sources where id = 'journal:' || old.id; end;
+	create table memory_history (
+		id integer primary key, memory_id integer not null references memories(id) on delete cascade,
+		fact text not null, topic text not null, source text, valid_from text not null,
+		valid_until text, actor text not null
+	);
+	insert into memory_history (memory_id, fact, topic, source, valid_from, actor)
+		select id, fact, topic, source, created_at, 'migration' from memories;
+	create trigger memory_history_ai after insert on memories begin
+		insert into memory_history (memory_id, fact, topic, source, valid_from, actor)
+		values (new.id, new.fact, new.topic, new.source, new.created_at, coalesce(new.source, 'agent'));
+	end;
+	create table memory_proposals (
+		id integer primary key, workspace_id integer references workspaces(id),
+		topic text not null, fact text not null, source text not null,
+		replaces integer references memories(id) on delete set null,
+		status text not null default 'pending' check (status in ('pending','accepted','rejected')),
+		memory_id integer references memories(id) on delete set null,
+		created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ'))
+	);
+	create table workflows (
+		id integer primary key, workspace_id integer not null references workspaces(id),
+		kind text not null check (kind in ('meeting','weekly_review','idea_to_plan')),
+		title text not null, query text not null, status text not null default 'collect', resume_status text,
+		evidence text not null default '[]', draft text, doc_id integer references docs(id) on delete set null,
+		created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ')),
+		updated_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ'))
+	);
+	create table workflow_steps (
+		id integer primary key, workflow_id integer not null references workflows(id) on delete cascade,
+		step text not null, payload text not null, actor text not null,
+		created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ'))
+	);
+	create table graph_exports (
+		source_id text not null, hash text not null, workspace_id integer not null references workspaces(id),
+		episode_id text not null, primary key(source_id, hash)
+	);
+
+	create table ai_traces (
+		id text primary key, thread_id integer references threads(id) on delete cascade,
+		workspace_id integer references workspaces(id), provider text not null,
+		status text not null, detail text not null default '{}',
+		created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ'))
+	);
+	`,
 ];
 
 function searchTriggers(): string {

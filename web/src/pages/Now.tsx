@@ -186,7 +186,7 @@ export function NowPage() {
 				out.push(t);
 			}
 		const skip = later();
-		out.sort((a, b) => Number(skip.includes(a.key)) - Number(skip.includes(b.key)));
+		out.sort((a, b) => skip.indexOf(a.key) - skip.indexOf(b.key));
 		const p = pinned();
 		if (p) out.sort((a, b) => Number(b.key === p) - Number(a.key === p));
 		return out;
@@ -195,6 +195,10 @@ export function NowPage() {
 	const focus = () => ctx.data?.day.running_focus ?? null;
 	const checkin = () => [...(ctx.data?.day.journal ?? [])].reverse().find((j) => j.kind === "checkin");
 
+	const postpone = (key: string) => {
+		setPinned(null);
+		setLater((keys) => [...keys.filter((item) => item !== key), key]);
+	};
 	const done = async () => {
 		const t = current();
 		if (!t) return;
@@ -207,23 +211,23 @@ export function NowPage() {
 	};
 	const onKey = (e: KeyboardEvent) => {
 		if (e.target instanceof HTMLElement && e.target.closest("input, textarea, [contenteditable], [role=dialog]")) return;
-		if (e.metaKey || e.ctrlKey || e.altKey) return;
+		if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || focus() || document.querySelector('[role="dialog"][data-state="open"]')) return;
 		if (e.key === "d" || e.key === "ی") void done();
 		else if (e.key === "f" || e.key === "ب") void startFocus();
-		else if ((e.key === "l" || e.key === "م") && current()) setLater((l) => [...l, current()!.key]);
+		else if ((e.key === "l" || e.key === "م") && current()) postpone(current()!.key);
 	};
 	onMount(() => window.addEventListener("keydown", onKey));
 	onCleanup(() => window.removeEventListener("keydown", onKey));
 
 	return (
-		<Show when={ctx.data} fallback={<div class="now-loading">…</div>}>
+		<Show when={ctx.data} fallback={<div class="now-loading" role="status">در حال دریافت برنامهٔ امروز…</div>}>
 			{(c) => (
 				<div class="now">
 					<Show when={focus()}>
 						<FocusMode task={queue().find((t) => t.key === focus()!.task_key) ?? null} startedAt={focus()!.started_at} onExit={() => void ctx.refetch()} />
 					</Show>
 
-					<Horizon goals={c().goals} />
+
 
 					<div class="now-greet">
 						<h1>{greeting()}</h1>
@@ -235,7 +239,7 @@ export function NowPage() {
 						<div class="energy" title="انرژی امروز">
 							<For each={ENERGY}>
 								{(e, i) => (
-									<button type="button" classList={{ on: checkin()?.energy === i() + 1 }} onClick={() => rpc("addJournal", { kind: "checkin", energy: i() + 1, mood: checkin()?.mood ?? null })}>
+									<button type="button" aria-label={`انرژی امروز: ${fa(i() + 1)} از ۵`} aria-pressed={checkin()?.energy === i() + 1} classList={{ on: checkin()?.energy === i() + 1 }} onClick={() => rpc("addJournal", { kind: "checkin", energy: i() + 1, mood: checkin()?.mood ?? null })}>
 										{e}
 									</button>
 								)}
@@ -249,8 +253,8 @@ export function NowPage() {
 							<Show when={c().goals.length || c().projects.length} fallback={<FirstSteps ctx={c()} />}>
 								<div class="step-card empty">
 									<div class="step-emoji">🌄</div>
-									<h2>مسیر امروز تمیز است.</h2>
-									<p class="muted">یک قدم تازه بردار، یا برو استراحت کن. هر دو قبول است.</p>
+									<h2>کاری در صف امروز نیست</h2>
+									<p class="muted">برای امروز یک کار ثبت کن یا با دستیار برنامه بریز.</p>
 									<div class="row" style={{ "justify-content": "center", gap: "8px" }}>
 										<button type="button" class="big-btn primary" onClick={() => openPalette("")}>
 											＋ قدم تازه
@@ -264,7 +268,7 @@ export function NowPage() {
 						}
 					>
 						{(t) => (
-							<article class="step-card" onDblClick={() => openTask(t().key)}>
+							<article class="step-card">
 								<div class="step-meta">
 									<span class="step-label">قدم بعدی</span>
 									<button type="button" class="md-key" onClick={() => openTask(t().key)}>
@@ -285,20 +289,18 @@ export function NowPage() {
 										<span class="step-chip">⏳ {fa(t().estimate_h!)} ساعت</span>
 									</Show>
 								</div>
-								<h2 class="step-title" onClick={() => openTask(t().key)}>
-									{t().title}
-								</h2>
+								<h2 class="step-title"><button class="step-open" onClick={() => openTask(t().key)}>{t().title}</button></h2>
 								<Show when={c().day.intention}>
 									<div class="step-why">نیت امروز: {c().day.intention}</div>
 								</Show>
 								<div class="step-actions">
-									<button type="button" class="big-btn primary" onClick={done} title="D">
+									<button type="button" class="big-btn" onClick={done} title="D">
 										✓ انجامش دادم
 									</button>
-									<button type="button" class="big-btn" onClick={startFocus} title="F">
-										⏱ تمرکز
+									<button type="button" class="big-btn primary" onClick={startFocus} title="F">
+										شروع تمرکز
 									</button>
-									<button type="button" class="big-btn ghost" onClick={() => setLater((l) => [...l, t().key])} title="L">
+									<button type="button" class="big-btn ghost" disabled={queue().length < 2} onClick={() => postpone(t().key)} title="L">
 										↷ بعداً
 									</button>
 									<button
@@ -312,7 +314,7 @@ export function NowPage() {
 										✳️ کمک
 									</button>
 								</div>
-								<div class="step-keys faint small">کلیدها: D انجام · F تمرکز · L بعداً · دوبار کلیک برای جزئیات</div>
+								<div class="step-keys faint small">D انجام · F تمرکز · L بعداً</div>
 							</article>
 						)}
 					</Show>
@@ -343,6 +345,8 @@ export function NowPage() {
 							</div>
 						</div>
 					</Show>
+
+					<Horizon goals={c().goals} />
 
 					<div class="now-foot">
 						<Show when={c().open_asks.length}>

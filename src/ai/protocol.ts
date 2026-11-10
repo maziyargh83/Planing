@@ -9,7 +9,10 @@
 
 export type ToolState = "input-streaming" | "input-available" | "approval-requested" | "output-available" | "output-error" | "denied";
 
+export interface EvidenceSource { source_id: string; title: string; href: string; updated_at: string }
+
 export type Part =
+	| { type: "sources"; sources: EvidenceSource[]; mode: string; degraded: boolean }
 	| { type: "text"; id: string; text: string }
 	| { type: "reasoning"; id: string; text: string; ms?: number }
 	| {
@@ -35,6 +38,7 @@ export interface Usage {
 }
 
 export type ChatEvent =
+	| { type: "sources"; sources: EvidenceSource[]; mode: string; degraded: boolean }
 	| { type: "start"; messageId: number; provider: string; model: string | null }
 	| { type: "text-start"; id: string }
 	| { type: "text-delta"; id: string; delta: string }
@@ -70,6 +74,9 @@ function tool(message: AssistantMessage, id: string) {
 /** Folds one event into a message. Mutates and returns it, so it works with Solid stores (via produce) and plain objects. */
 export function applyEvent(message: AssistantMessage, event: ChatEvent): AssistantMessage {
 	switch (event.type) {
+		case "sources":
+			message.parts.push({ ...event });
+			break;
 		case "start":
 			message.provider = event.provider;
 			message.model = event.model;

@@ -192,3 +192,24 @@ export async function editSchedule(current: string): Promise<string | null> {
 	if (a.kind === "weekdays") return `weekdays ${time}`;
 	return `weekly ${a.day} ${time}`;
 }
+
+
+export async function newRecallWorkflow(query = "") {
+	const a = await ask({
+		title: "با سابقه‌ام آماده شو",
+		description: "منابع مرتبط جمع می‌شوند و پیش‌نویس را پیش از ذخیره بررسی می‌کنی.",
+		confirm: "شروع کن",
+		fields: [
+			{ name: "kind", label: "برای چه کاری آماده می‌شوی؟", type: "pills", value: "meeting", options: [
+				{ value: "meeting", label: "جلسه" }, { value: "weekly_review", label: "مرور هفته" }, { value: "idea_to_plan", label: "ایده به برنامه" },
+			] },
+			{ name: "title", label: "عنوان این کار چیست؟", required: true, placeholder: "مثلاً آماده‌سازی جلسه با لید" },
+			{ name: "query", label: "چه سابقه‌ای را بررسی کنیم؟", type: "textarea", required: true, value: query, placeholder: "مثلاً تصمیم‌ها و تعهدهای قبلی دربارهٔ سرچ" },
+		],
+	});
+	if (!a) return null;
+	const w = await rpc<{ id: number }>("workflowCreate", a);
+	await rpc("workflowAdvance", w.id, "collect");
+	toast("منابع جمع شدند؛ پیش‌نویس را با دستیار آماده کن.");
+	return w;
+}

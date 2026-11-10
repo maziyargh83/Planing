@@ -56,6 +56,7 @@ export const claudeCode: Provider = {
 			"--disallowedTools", ...DESTRUCTIVE_TOOLS.map((t) => `mcp__gaam__${t}`),
 			"--tools", "",
 			"--disable-slash-commands",
+			"--max-turns", String(ctx.limits.maxSteps),
 			"--append-system-prompt", ctx.system,
 		];
 		if (ctx.model) args.push("--model", ctx.model);

@@ -1,0 +1,34 @@
+description: Gaam Persian retrieval regression suite (synthetic SQLite, no model calls)
+prompts: ["{{query}}"]
+providers:
+  - id: file://provider.mjs
+    config:
+      semantic: false
+defaultTest:
+  assert:
+    - type: is-json
+    - type: not-contains
+      value: PRIVATE_CANARY_8491
+    - type: javascript
+      value: "JSON.parse(output).sources.every(s => /^#\\/sources\\/[A-Za-z0-9%:_-]+$/.test(s.href))"
+tests:
+  - vars: {query: "جلسه با لید", workspace: snappfood}
+    assert: [{type: contains, value: "جلسه با لید دربارهٔ سرچ"}]
+  - vars: {query: "تعهد جستجوی بدون نتیجه", workspace: snappfood}
+    assert: [{type: contains, value: "سه‌شنبه"}]
+  - vars: {query: "rollout", workspace: snappfood}
+    assert: [{type: contains, value: "تصمیم توقف rollout"}]
+  - vars: {query: "مسئول خطای API", workspace: snappfood}
+    assert: [{type: contains, value: "سارا"}]
+  - vars: {query: "مرور هفته cache", workspace: snappfood}
+    assert: [{type: contains, value: "ادغام شد"}]
+  - vars: {query: "ترجیح پاسخ فارسی", workspace: snappfood}
+    assert: [{type: contains, value: "پاسخ‌های کوتاه فارسی"}]
+  - vars: {query: "برنامهٔ سفر هتل", workspace: snappfood}
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).sources.length === 0"
+  - vars: {query: "rollout", workspace: personal}
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).sources.length === 0"

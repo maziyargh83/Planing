@@ -165,7 +165,7 @@ export interface GaamEvent {
 }
 
 export class GaamError extends Error {
-	code: "NOT_FOUND" | "INVALID" | "CONFLICT" | "INTEGRATION";
+	code: "NOT_FOUND" | "INVALID" | "CONFLICT" | "INTEGRATION" | "LIMIT";
 	constructor(code: GaamError["code"], message: string) {
 		super(message);
 		this.code = code;
