@@ -1,3 +1,4 @@
+import { autosave, DateField, Field, HoursField, Pills, SaveIndicator, ScoreField, TitleField } from "~/components/form.tsx";
 import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createEffect, createResource, createRoot, createSignal, For, type JSX, on, onCleanup, onMount, Show } from "solid-js";
 import * as Drawer from "~/components/ui/drawer";
@@ -22,11 +23,20 @@ import {
 
 // ── Routing ────────────────────────────────────────────────────────────────
 
-const [route, setRoute] = createSignal(location.hash.slice(1) || "/today");
-window.addEventListener("hashchange", () => setRoute(location.hash.slice(1) || "/today"));
-export { route };
+/**
+ * The current path, kept in sync by the TanStack router (router.tsx) so
+ * components outside the route tree can react to navigation.
+ */
+const [route, setRoute] = createSignal(location.hash.slice(1).split("?")[0] || "/now");
+export { route, setRoute };
+let navigateFn: ((path: string) => void) | null = null;
+/** Registered by the router; falls back to the hash before it boots. */
+export const setNavigator = (fn: (path: string) => void) => {
+	navigateFn = fn;
+};
 export const go = (path: string) => {
-	location.hash = path;
+	if (navigateFn) navigateFn(path);
+	else location.hash = path;
 };
 
 // ── Task drawer (global) ───────────────────────────────────────────────────
@@ -175,7 +185,7 @@ export function TaskDrawer() {
 		([key]) => rpc("taskBundle", key).catch(() => null),
 	);
 	const [branch, setBranch] = createSignal<string | null>(null);
-	const save = (patch: Record<string, unknown>) => rpc("updateTask", openTaskKey(), patch);
+	const save = (patch: Record<string, unknown>) => autosave(() => rpc("updateTask", openTaskKey(), patch));
 	const close = () => {
 		setOpenTaskKey(null);
 		setBranch(null);
@@ -192,101 +202,113 @@ export function TaskDrawer() {
 				return (
 					<>
 						<Drawer.Body>
-							<div class="row" style={{ "margin-bottom": "10px" }}>
+							<div class="sheet-top">
 								<Tag class="key">{t().key}</Tag>
 								<Show when={t().jira_key && t().jira_key !== t().key}>
 									<Tag class="key">🔗 {t().jira_key}</Tag>
 								</Show>
 								<Show when={t().external_status}>
-									<a class="chip ltr" href={t().external_url ?? "#"} target="_blank" rel="noreferrer">
+									<a class="chip ltr" href={t().external_url ?? "#"} target="_blank" rel="noreferrer" title="ستون جیرا (فقط خواندنی)">
 										Jira · {t().external_status} ↗
 									</a>
 								</Show>
 								<span class="spacer" />
-								<Btn kind="ghost sm" onClick={close}>
+								<SaveIndicator />
+								<Btn kind="ghost sm" onClick={close} aria-label="بستن">
 									✕
 								</Btn>
 							</div>
-							<input
-								class="inline-edit"
-								style={{ "font-size": "20px", "font-weight": 800 }}
-								value={t().title}
-								onChange={(e) => save({ title: e.currentTarget.value })}
-							/>
-							<div class="grid g3" style={{ margin: "16px 0" }}>
-								<label>
-									<div class="field-label">وضعیت</div>
-									<Choice width="100%" value={t().status} options={STATUSES.map((s) => ({ value: s, label: STATUS_FA[s]! }))} onChange={(v) => save({ status: v })} />
-								</label>
-								<label>
-									<div class="field-label">اولویت</div>
-									<Choice width="100%" value={t().priority} options={[0, 1, 2, 3].map((p) => ({ value: String(p), label: PRIORITY_FA[p]! }))} onChange={(v) => save({ priority: Number(v) })} />
-								</label>
-								<label>
-									<div class="field-label">اسکوپ</div>
-									<Choice
-										width="100%"
-										value={t().scope ?? ""}
-										options={[{ value: "", label: "تصمیم نگرفته" }, ...["in", "later", "out"].map((s) => ({ value: s, label: SCOPE_FA[s]! }))]}
-										onChange={(v) => save({ scope: v || null })}
+
+							<TitleField value={t().title} onSave={(v) => save({ title: v })} />
+
+							<div class="sheet-grid">
+								<Field label="وضعیت" wide>
+									<Pills
+										value={t().status}
+										options={[
+											{ value: "todo", label: "بعدی", icon: "○" },
+											{ value: "doing", label: "در حال انجام", icon: "◐", tone: "blue" },
+											{ value: "blocked", label: "گیر کرده", icon: "⛔", tone: "red", hint: "یک کامنت بنویس که چه چیزی جلویش را گرفته و چه کسی می‌تواند بازش کند." },
+											{ value: "done", label: "انجام شد", icon: "✓", tone: "green" },
+											{ value: "dropped", label: "کنار گذاشتم", icon: "✕", hint: "تاریخچه می‌ماند؛ فقط دیگر در لیست‌ها نیست." },
+										]}
+										onChange={(v) => save({ status: v })}
 									/>
-								</label>
-								<label>
-									<div class="field-label">تخمین (ساعت)</div>
-									<TextInput
-									 class="ltr"
-										type="number"
-										step="0.5"
-										value={t().estimate_h ?? ""}
-										onChange={(e) => save({ estimate_h: e.currentTarget.value ? Number(e.currentTarget.value) : null })}
+								</Field>
+								<Field label="کِی باید تمام شود؟">
+									<DateField value={t().due} onChange={(v) => save({ due: v })} placeholder="ددلاین ندارد" />
+								</Field>
+								<Field label="چقدر وقت می‌برد؟" hint={t().actual_h ? `تا الان ${fa(Math.round(t().actual_h * 10) / 10)} ساعت تمرکز ثبت شده` : "تخمین تو؛ بعداً با زمان واقعی مقایسه می‌شود"}>
+									<HoursField value={t().estimate_h} onChange={(v) => save({ estimate_h: v })} />
+								</Field>
+								<Field label="چقدر فوری است؟" wide>
+									<Pills
+										value={t().priority}
+										options={[
+											{ value: 0, label: "همین الان", tone: "red", hint: "P0 · اگر انجام نشود چیزی می‌سوزد" },
+											{ value: 1, label: "این هفته", tone: "amber", hint: "P1 · مهم و نزدیک" },
+											{ value: 2, label: "معمولی", hint: "P2 · پیش‌فرض" },
+											{ value: 3, label: "یک روزی", hint: "P3 · اگر وقت شد" },
+										]}
+										onChange={(v) => save({ priority: v })}
 									/>
-								</label>
-								<label>
-									<div class="field-label">ددلاین</div>
-									<TextInput class="ltr" type="date" value={t().due ?? ""} onChange={(e) => save({ due: e.currentTarget.value || null })} />
-								</label>
-								<div>
-									<div class="field-label">زمان واقعی</div>
-									<div style={{ padding: "7px 0" }}>
-										{fa(Math.round(t().actual_h * 10) / 10)} ساعت
-									</div>
-								</div>
+								</Field>
+								<Field
+									label="در این نسخه هست؟"
+									wide
+									help="اسکوپ یعنی تصمیم درباره‌ی این‌که این کار در نسخه‌ی فعلی پروژه هست یا نه. «داخل» = کوچک‌ترین نسخه‌ای که فرضیه را تست می‌کند."
+								>
+									<Pills
+										value={t().scope ?? "none"}
+										options={[
+											{ value: "in", label: "داخل", tone: "green" },
+											{ value: "later", label: "بعداً", tone: "amber" },
+											{ value: "out", label: "خارج", tone: "red" },
+											{ value: "none", label: "هنوز تصمیم نگرفتم" },
+										]}
+										onChange={(v) => save({ scope: v === "none" ? null : v })}
+									/>
+								</Field>
 							</div>
 
-							<Panel style={{ "margin-bottom": "16px" }}>
-								<h3>
-									اولویت‌بندی ICE <span class="spacer" /> <Ice value={t().ice} />
-								</h3>
-								<div class="stack" style={{ gap: "10px" }}>
-									<Slider label="تأثیر" hint="چقدر هدف را جلو می‌برد؟" value={t().impact} onChange={(v) => save({ impact: v })} />
-									<Slider label="اطمینان" hint="چقدر مطمئنی که جواب می‌دهد؟" value={t().confidence} onChange={(v) => save({ confidence: v })} />
-									<Slider label="سهولت" hint="چقدر کم‌هزینه است؟" value={t().ease} onChange={(v) => save({ ease: v })} />
+							<details class="sheet-section" open={t().ice != null}>
+								<summary>
+									<span>🎯 ارزشش چقدر است؟ (امتیاز ICE)</span>
+									<span class="spacer" />
+									<Ice value={t().ice} />
+								</summary>
+								<div class="ff-helpbox" style={{ margin: "8px 0 12px" }}>
+									سه سؤال ساده. امتیاز نهایی = تأثیر × اطمینان × سهولت ÷ ۱۰ (از ۰ تا ۱۰۰). تسک‌های پرامتیازتر بالاتر می‌آیند.
 								</div>
-							</Panel>
+								<div class="stack" style={{ gap: "14px" }}>
+									<ScoreField kind="impact" value={t().impact} onChange={(v) => save({ impact: v })} />
+									<ScoreField kind="confidence" value={t().confidence} onChange={(v) => save({ confidence: v })} />
+									<ScoreField kind="ease" value={t().ease} onChange={(v) => save({ ease: v })} />
+								</div>
+							</details>
 
-							<div class="field-label">توضیحات</div>
-							<TextArea
-							
-								rows="5"
-								placeholder="تعریف «انجام شد» چیست؟"
-								value={t().description ?? ""}
-								onChange={(e) => save({ description: e.currentTarget.value })}
-							/>
+							<Field label="جزئیات" hint="Markdown مجاز است. بهترین کار: یک خط «انجام شد یعنی…»">
+								<TextArea rows="5" placeholder="انجام شد یعنی… &#10;لینک‌ها، نکته‌ها، معیار پذیرش" value={t().description ?? ""} onChange={(e) => save({ description: e.currentTarget.value })} />
+								<Show when={!t().description}>
+									<div class="pills sm">
+										<button type="button" class="pill" onClick={() => save({ description: "انجام شد یعنی:\n- \n\nنکته‌ها:\n- " })}>
+											＋ قالب «انجام شد یعنی…»
+										</button>
+									</div>
+								</Show>
+							</Field>
 
-							<div class="row wrap" style={{ margin: "14px 0" }}>
-								<Btn onClick={() => rpc("startFocus", t().key)}>
-									⏱ شروع تمرکز
-								</Btn>
-								<Btn onClick={async () => setBranch(await rpc("branchName", t().key))}>
-									⎇ اسم برنچ
-								</Btn>
-								<span class="spacer" />
-								<Btn
-								 kind="ghost danger sm"
-									onClick={async () => (await confirmAction("این تسک و زیرتسک‌هایش حذف شوند؟", "برای نگه داشتن تاریخچه، «کنار گذاشته» بهتر است.")) && rpc("deleteTask", t().key).then(close)}
-								>
-									حذف
-								</Btn>
+							<div class="sheet-section">
+								<div class="ff-label">زیرتسک‌ها</div>
+								<For each={bundle().subtasks} fallback={<div class="ff-hint">کار بزرگ است؟ به قدم‌های کمتر از نیم‌روز بشکنش.</div>}>
+									{(s: Task) => <TaskRow task={s} />}
+								</For>
+								<QuickAdd project={t().project_id ? String(t().project_id) : null} parent={t().key} placeholder="＋ یک زیرتسک بنویس و Enter بزن" />
+							</div>
+
+							<div class="sheet-actions">
+								<Btn onClick={() => rpc("startFocus", t().key).then(close)}>⏱ شروع تمرکز</Btn>
+								<Btn onClick={async () => setBranch(await rpc("branchName", t().key))}>⎇ اسم برنچ</Btn>
 							</div>
 							<Show when={branch()}>
 								<pre class="code" onClick={() => navigator.clipboard.writeText(`git switch -c ${branch()}`).then(() => toast("کپی شد"))}>
@@ -294,25 +316,34 @@ export function TaskDrawer() {
 								</pre>
 							</Show>
 
-							<h3 style={{ margin: "20px 0 6px" }}>زیرتسک‌ها</h3>
-							<For each={bundle().subtasks}>{(s: Task) => <TaskRow task={s} />}</For>
-							<QuickAdd project={t().project_id ? String(t().project_id) : null} parent={t().key} placeholder="+ زیرتسک…" />
-
 							<Show when={bundle().links.length}>
-								<h3 style={{ margin: "20px 0 6px" }}>لینک‌ها</h3>
-								<For each={bundle().links}>
-									{(l: { kind: string; ref: string; url: string | null; title: string | null }) => (
-										<a class="row small" href={l.url ?? "#"} target="_blank" rel="noreferrer" style={{ padding: "3px 0" }}>
-											<Tag>{l.kind}</Tag>
-											<span class="ltr faint">{l.ref}</span>
-											<span>{l.title}</span>
-										</a>
-									)}
-								</For>
+								<div class="sheet-section">
+									<div class="ff-label">لینک‌ها (کامیت، MR، جیرا)</div>
+									<For each={bundle().links}>
+										{(l: { kind: string; ref: string; url: string | null; title: string | null }) => (
+											<a class="row small" href={l.url ?? "#"} target="_blank" rel="noreferrer" style={{ padding: "3px 0" }}>
+												<Tag>{l.kind}</Tag>
+												<span class="ltr faint">{l.ref}</span>
+												<span>{l.title}</span>
+											</a>
+										)}
+									</For>
+								</div>
 							</Show>
 
-							<h3 style={{ margin: "20px 0 8px" }}>گفتگو</h3>
-							<Thread entity="task" refId={t().key} />
+							<div class="sheet-section">
+								<div class="ff-label">گفتگو</div>
+								<Thread entity="task" refId={t().key} />
+							</div>
+
+							<div class="sheet-danger">
+								<button
+									type="button"
+									onClick={async () => (await confirmAction("این تسک و زیرتسک‌هایش حذف شوند؟", "اگر فقط نمی‌خواهی انجامش بدهی، «کنار گذاشتم» بهتر است؛ تاریخچه می‌ماند.")) && rpc("deleteTask", t().key).then(close)}
+								>
+									حذف کامل این تسک
+								</button>
+							</div>
 						</Drawer.Body>
 					</>
 				);

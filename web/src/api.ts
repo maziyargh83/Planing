@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/solid-query";
 import { createSignal } from "solid-js";
 
 import { toaster } from "~/components/ui/toast";
@@ -62,8 +63,14 @@ const [feed, setFeed] = createSignal<GaamEvent[]>([]);
 const [online, setOnline] = createSignal(false);
 export { feed, online, version };
 
+/** Data cache for TanStack Query. The live event stream invalidates it, like the version signal. */
+export const queryClient = new QueryClient({
+	defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
+});
+
 export function bump() {
 	setVersion((v) => v + 1);
+	void queryClient.invalidateQueries();
 }
 
 export function connectStream() {

@@ -1,3 +1,4 @@
+import { newGoal } from "../flows.ts";
 import { WorkspaceSettings } from "./Workspaces.tsx";
 import { Btn, Choice, Panel, Tag, TextInput } from "~/components/app.tsx";
 import { createResource, createSignal, For, Show } from "solid-js";
@@ -61,16 +62,9 @@ export function Goals() {
 					<h1>اهداف</h1>
 					<p>هر پروژه باید به یک هدف وصل باشد. هر هدف یک «چرا» و یک عدد دارد.</p>
 				</div>
-				<form
-					class="row"
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (title().trim()) rpc("createGoal", { title: title().trim() }).then(() => setTitle(""));
-					}}
-				>
-					<TextInput style={{ width: "280px" }} placeholder="هدف جدید…" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
-					<Btn kind="primary">+ هدف</Btn>
-				</form>
+				<Btn kind="primary" onClick={() => newGoal()}>
+					＋ هدف تازه
+				</Btn>
 			</div>
 			<div class="grid g2">
 				<For each={goals()} fallback={<div class="empty">هدفی تعریف نشده. از ایجنت بخواه با تو هدف‌های این فصل را دربیاورد.</div>}>

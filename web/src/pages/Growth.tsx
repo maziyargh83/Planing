@@ -1,3 +1,4 @@
+import { newDecision, newFollowup, newPerson } from "../flows.ts";
 import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { ask, DATE_SUGGESTIONS, todayIso } from "~/kit.tsx";
@@ -277,36 +278,12 @@ function Decisions() {
 	return (
 		<Panel>
 			<h3>⚖️ دفتر تصمیم‌ها · کِی خودم تصمیم بگیرم، کِی escalate کنم؟</h3>
-			<form
-				class="row wrap"
-				onSubmit={(e) => {
-					e.preventDefault();
-					if (!title().trim()) return;
-					rpc("saveDecision", { title: title().trim(), impact: impact(), reversible: reversible() }).then(() => (setTitle(""), refetch()));
-				}}
-			>
-				<TextInput style={{ flex: 1, "min-width": "220px" }} placeholder="چه چیزی را باید تصمیم بگیرم؟" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
-				<Choice
-					value={impact()}
-					options={[
-						{ value: "high", label: "اثر زیاد" },
-						{ value: "low", label: "اثر کم" },
-					]}
-					onChange={(v) => setImpact(v as "low" | "high")}
-				/>
-				<Choice
-					value={reversible() ? "1" : "0"}
-					options={[
-						{ value: "1", label: "برگشت‌پذیر" },
-						{ value: "0", label: "برگشت‌ناپذیر" },
-					]}
-					onChange={(v) => setReversible(v === "1")}
-				/>
-				<Tag style={{ color: MODE_COLOR[preview()] }}>
-					→ {MODE_FA[preview()]}
-				</Tag>
-				<Btn kind="primary sm">ثبت</Btn>
-			</form>
+			<div class="row wrap" style={{ gap: "8px" }}>
+				<Btn kind="primary sm" onClick={() => newDecision().then(() => refetch())}>
+					＋ ثبت یک تصمیم
+				</Btn>
+				<span class="faint small">دو سؤال: چقدر اثر دارد؟ برمی‌گردد؟ گام می‌گوید خودت تصمیم بگیری یا هماهنگ کنی.</span>
+			</div>
 			<div class="stack" style={{ "margin-top": "10px" }}>
 				<For each={list()} fallback={<div class="faint small">تصمیم‌های فنی را این‌جا ثبت کن تا مرز «مستقل / هماهنگی» برای خودت و لیدت روشن شود.</div>}>
 					{(d) => (
@@ -463,22 +440,12 @@ export function Followups(props: { person?: string; compact?: boolean }) {
 	return (
 		<Panel>
 			<h3>↩ پیگیری‌ها <span class="faint small">· قول‌هایم و چیزهایی که منتظرشانم</span></h3>
-			<form class="row wrap" onSubmit={add} style={{ "margin-bottom": "8px" }}>
-				<Choice
-					value={dir()}
-					options={[
-						{ value: "mine", label: "من باید…" },
-						{ value: "theirs", label: "منتظرم از…" },
-					]}
-					onChange={(v) => setDir(v as "mine" | "theirs")}
-				/>
-				<Show when={!props.person}>
-					<TextInput style={{ width: "140px" }} placeholder="چه کسی" value={who()} onInput={(e) => setWho(e.currentTarget.value)} />
-				</Show>
-				<TextInput style={{ flex: 1, "min-width": "160px" }} placeholder="چه چیزی" value={text()} onInput={(e) => setText(e.currentTarget.value)} />
-				<TextInput class="ltr" type="date" style={{ width: "auto" }} value={due()} onInput={(e) => setDue(e.currentTarget.value)} />
-				<Btn kind="sm">+</Btn>
-			</form>
+			<div class="row" style={{ "margin-bottom": "8px" }}>
+				<Btn kind="sm" onClick={() => newFollowup({ person: props.person }).then(() => refetch())}>
+					＋ پیگیری تازه
+				</Btn>
+				<span class="faint small">قولی که دادی یا چیزی که منتظرش هستی</span>
+			</div>
 			<For each={list()} fallback={<div class="faint small">پیگیری بازی نیست.</div>}>
 				{(f) => (
 					<div class="row small followup" classList={{ overdue: f.overdue }}>
@@ -533,16 +500,9 @@ export function PeoplePage() {
 					<h1>آدم‌ها</h1>
 					<p>رابطه‌سازی آگاهانه: تیمت، لیدت، پروداکت و ارزیاب‌هایت. هر کمک، فیدبک و تشکر شاهدی برای Leadership و Communication است.</p>
 				</div>
-				<form
-					class="row"
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (name().trim()) rpc("savePerson", { name: name().trim() }).then(() => (setName(""), refetch()));
-					}}
-				>
-					<TextInput style={{ width: "220px" }} placeholder="اسم…" value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-					<Btn kind="primary">+ آدم</Btn>
-				</form>
+				<Btn kind="primary" onClick={() => newPerson().then(() => refetch())}>
+					＋ آدم تازه
+				</Btn>
 			</div>
 			<TeamBoard />
 			<div style={{ "margin-bottom": "16px" }}>

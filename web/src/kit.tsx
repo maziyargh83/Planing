@@ -1,6 +1,7 @@
+import { DateField, Field as FormField, HoursField, PersonField, Pills } from "~/components/form.tsx";
 import { Choice } from "~/components/app.tsx";
 import { LocaleProvider } from "@ark-ui/solid/locale";
-import { createSignal, For, type JSX, Show } from "solid-js";
+import { createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
 import { createStore } from "solid-js/store";
 
 import { Button } from "~/components/ui/button";
@@ -14,7 +15,7 @@ import { Toaster } from "~/components/ui/toast";
 export interface DialogField {
 	name: string;
 	label: string;
-	type?: "text" | "textarea" | "date" | "number" | "select";
+	type?: "text" | "textarea" | "date" | "number" | "select" | "pills" | "person" | "hours";
 	placeholder?: string;
 	value?: string;
 	hint?: string;
@@ -86,45 +87,50 @@ function DialogHost() {
 							<Dialog.Body>
 								<For each={request()?.fields}>
 									{(f, i) => (
-										<Field.Root required={f.required} style={{ "margin-bottom": "12px" }}>
-											<Field.Label>{f.label}</Field.Label>
-											<Show
-												when={f.type === "textarea"}
+										<FormField label={f.label} hint={f.hint} class="dlg-field">
+											<Switch
 												fallback={
-													<Show
-														when={f.type === "select"}
-														fallback={
-															<Input
-																autofocus={i() === 0}
-																type={f.type ?? "text"}
-																dir={f.type === "date" || f.type === "number" ? "ltr" : undefined}
-																placeholder={f.placeholder}
-																value={values[f.name] ?? ""}
-																onInput={(e) => setValues(f.name, e.currentTarget.value)}
-															/>
-														}
-													>
-														<Choice width="100%" value={values[f.name]} options={f.options ?? []} onChange={(v) => setValues(f.name, v)} />
-													</Show>
+													<Input
+														autofocus={i() === 0}
+														type={f.type === "number" ? "number" : "text"}
+														dir={f.type === "number" ? "ltr" : undefined}
+														placeholder={f.placeholder}
+														value={values[f.name] ?? ""}
+														onInput={(e) => setValues(f.name, e.currentTarget.value)}
+													/>
 												}
 											>
-												<Textarea autofocus={i() === 0} rows={4} placeholder={f.placeholder} value={values[f.name] ?? ""} onInput={(e) => setValues(f.name, e.currentTarget.value)} />
-											</Show>
+												<Match when={f.type === "textarea"}>
+													<Textarea autofocus={i() === 0} rows={4} placeholder={f.placeholder} value={values[f.name] ?? ""} onInput={(e) => setValues(f.name, e.currentTarget.value)} />
+												</Match>
+												<Match when={f.type === "select"}>
+													<Choice width="100%" value={values[f.name]} options={f.options ?? []} onChange={(v) => setValues(f.name, v)} />
+												</Match>
+												<Match when={f.type === "pills"}>
+													<Pills value={values[f.name]} options={(f.options ?? []).map((o) => ({ value: o.value, label: o.label }))} onChange={(v) => setValues(f.name, v)} />
+												</Match>
+												<Match when={f.type === "date"}>
+													<DateField value={values[f.name] || null} onChange={(v) => setValues(f.name, v ?? "")} />
+												</Match>
+												<Match when={f.type === "person"}>
+													<PersonField value={values[f.name] || null} onChange={(v) => setValues(f.name, v ?? "")} />
+												</Match>
+												<Match when={f.type === "hours"}>
+													<HoursField value={values[f.name] ? Number(values[f.name]) : null} onChange={(v) => setValues(f.name, v == null ? "" : String(v))} />
+												</Match>
+											</Switch>
 											<Show when={f.suggestions?.length}>
-												<div class="row wrap" style={{ gap: "4px", "margin-top": "6px" }}>
+												<div class="pills sm">
 													<For each={f.suggestions}>
 														{(s) => (
-															<button type="button" class="chip suggest" classList={{ on: values[f.name] === s.value }} onClick={() => setValues(f.name, s.value)}>
+															<button type="button" class="pill" classList={{ on: values[f.name] === s.value }} onClick={() => setValues(f.name, s.value)}>
 																{s.label}
 															</button>
 														)}
 													</For>
 												</div>
 											</Show>
-											<Show when={f.hint}>
-												<Field.HelperText>{f.hint}</Field.HelperText>
-											</Show>
-										</Field.Root>
+										</FormField>
 									)}
 								</For>
 							</Dialog.Body>

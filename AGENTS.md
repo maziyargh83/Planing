@@ -30,7 +30,7 @@ src/mcp/server.ts         createMcpServer(): tools, resources, prompts
 src/mcp/prompts.ts        workflow prompts (idea_to_plan, plan_my_day, …)
 src/mcp/stdio.ts          stdio entry point
 src/server/main.ts        Hono: /api/rpc, /api/stream (SSE), /mcp (stateless HTTP), static UI
-web/src/                  SolidJS, RTL Persian UI; api.ts calls Planner methods through /api/rpc
+web/src/                  SolidJS + TanStack Router/Query, RTL Persian UI; api.ts calls Planner methods through /api/rpc
 docs/AGENT_GUIDE.md       how agents should use Gaam (served over MCP)
 ```
 
@@ -71,7 +71,10 @@ How it works:
 - The design system is **Park UI** (Ark UI for Solid with Panda CSS recipes): sand gray, amber accent. Components live in `web/src/components/ui` and theme files in `web/src/theme`. Both were added with the Park CLI, run from `web/` (`npx @park-ui/cli add <name>`). Keep them as the CLI writes them.
 - Panda generates `web/styled-system`. `pnpm build` and `prepare` run `panda codegen`. `staticCss: { recipes: "*" }` is required, because Panda cannot trace recipe variants through the Park wrappers.
 - Dark mode is the `.dark` class on `<html>`, set by `web/src/theme-mode.ts` (system, light or dark). The legacy CSS variables in `styles.css` (`--panel`, `--accent`, and so on) point at Panda tokens, so older markup follows the theme.
-- Never use `window.prompt` or `window.confirm`. Use `ask()` and `confirmAction()` from `web/src/kit.tsx`. They are Park dialogs, with suggestion chips for people and dates.
+- Never use `window.prompt` or `window.confirm`. Use `ask()` and `confirmAction()` from `web/src/kit.tsx`. They are Park dialogs with suggestion chips. Field types: `text`, `textarea`, `date`, `number`, `select`, `pills`, `person` and `hours`.
+- **Forms are guided.** Inputs come from `web/src/components/form.tsx`: `Field` (label, hint, help), `Pills`, `DateField` (Jalali picker with quick chips), `HoursField`, `ScoreField` (1–10 with anchors), `PersonField`, `TitleField`, and `autosave()` with `SaveIndicator`. Creation flows (`newGoal`, `newPerson`, `newFollowup`, `newDecision`, `editSchedule`) live in `web/src/flows.ts`. Use a flow button there instead of an inline form. Every question is a plain-language sentence with an example placeholder.
+- **Routing and data.** TanStack Router with hash history is in `web/src/router.tsx`; add a page there. `go(path)` in `ui.tsx` navigates. New reads should use TanStack Query (`useQuery` with a key that includes `workspace()`). `bump()` invalidates every query when an SSE event arrives.
+- **The shell is not a dashboard.** `shell.tsx` has a topbar, a bottom dock and the companion orb (⌘J opens the assistant with the current page as context). The default page is `/now` (`pages/Now.tsx`): one next step, a goal horizon and focus mode. `/sky` (`pages/Sky.tsx`) draws goals as stars and projects as planets. Keep new surfaces in that spirit: one clear next action, not a grid of widgets.
 - Quick capture: `web/src/capture.ts` parses one Persian or English line into a task, follow-up, meeting, lesson, decision, memory or idea. Persian names are matched to English names by consonant skeleton. Its tests are in `web/src/capture.test.ts`.
 
 ## Conventions

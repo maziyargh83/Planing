@@ -272,11 +272,15 @@ interface ThreadRow {
 	count: number;
 }
 
-export function AssistantPage(props: { initialContext?: ContextRef[] }) {
+export function AssistantPage(props: { initialContext?: ContextRef[]; compact?: boolean }) {
+	// In the companion sheet the thread lives in local state, so the page underneath stays put.
+	const [localThread, setLocalThread] = createSignal<number | null>(null);
 	const threadId = () => {
+		if (props.compact) return localThread();
 		const m = route().match(/^\/assistant\/(\d+)/);
 		return m ? Number(m[1]) : null;
 	};
+	const openThread = (id: number | null) => (props.compact ? setLocalThread(id) : go(id ? `/assistant/${id}` : "/assistant"));
 	const chat = createChat();
 	onCleanup(chat.dispose);
 	const [threads, { refetch: refetchThreads }] = createResource(version, () => rpc<ThreadRow[]>("threads"));
@@ -331,7 +335,7 @@ export function AssistantPage(props: { initialContext?: ContextRef[] }) {
 		queueMicrotask(autosize);
 		setStuck(true);
 		const id = await chat.send(text, ctx, { provider: provider(), model: model(), effort: current()?.effort ? effort() : null }).catch(() => null);
-		if (id && id !== threadId()) go(`/assistant/${id}`);
+		if (id && id !== threadId()) openThread(id);
 		refetchThreads();
 	};
 
@@ -390,8 +394,7 @@ export function AssistantPage(props: { initialContext?: ContextRef[] }) {
 		const prev = chat.state.messages.filter((x) => x.id < m.id).at(-1);
 		let target: number | null = null;
 		if (prev) target = await chat.fork(prev.id);
-		if (target) go(`/assistant/${target}`);
-		else go("/assistant");
+		openThread(target);
 		setTimeout(() => {
 			setContext(m.context);
 			void send(answer.text.trim());
@@ -407,16 +410,25 @@ export function AssistantPage(props: { initialContext?: ContextRef[] }) {
 	onMount(() => input?.focus());
 
 	return (
-		<div class="chat-layout">
+		<div class="chat-layout" classList={{ compact: props.compact }}>
 			<aside class="chat-threads">
-				<Btn kind="primary" style={{ width: "100%" }} onClick={() => (go("/assistant"), queueMicrotask(() => input?.focus()))}>
+				<Btn kind="primary" style={{ width: "100%" }} onClick={() => (openThread(null), queueMicrotask(() => input?.focus()))}>
 					＋ گفتگوی جدید
 				</Btn>
 				<input class="chat-search" placeholder="جستجوی گفتگوها…" value={filter()} onInput={(e) => setFilter(e.currentTarget.value)} />
 				<div class="stack" style={{ gap: "2px", "margin-top": "8px" }}>
 					<For each={shownThreads()} fallback={<div class="faint small" style={{ padding: "8px" }}>گفتگویی نیست.</div>}>
 						{(t) => (
-							<a class="thread-item" classList={{ on: t.id === threadId() }} href={`#/assistant/${t.id}`}>
+							<a
+								class="thread-item"
+								classList={{ on: t.id === threadId() }}
+								href={`#/assistant/${t.id}`}
+								onClick={(e) => {
+									if (!props.compact) return;
+									e.preventDefault();
+									openThread(t.id);
+								}}
+							>
 								<span>{t.pinned ? "📌" : t.origin === "automation" ? "⚙️" : (PROVIDER_ICON[t.provider] ?? "•")}</span>
 								<span class="thread-title">{t.title.replace(/^⚙️\s*/, "")}</span>
 								<span class="thread-meta faint small">
@@ -451,7 +463,7 @@ export function AssistantPage(props: { initialContext?: ContextRef[] }) {
 												if (await confirmAction(`«${t.title}» حذف شود؟`)) {
 													await rpc("deleteThread", t.id);
 													refetchThreads();
-													if (t.id === threadId()) go("/assistant");
+													if (t.id === threadId()) openThread(null);
 												}
 											}}
 										>
@@ -539,7 +551,7 @@ export function AssistantPage(props: { initialContext?: ContextRef[] }) {
 									onFork={async () => {
 										const id = await chat.fork(m.id);
 										refetchThreads();
-										go(`/assistant/${id}`);
+										openThread(id);
 									}}
 								/>
 							)

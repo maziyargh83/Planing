@@ -1,3 +1,4 @@
+import { editSchedule, scheduleText } from "../flows.ts";
 import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createResource, createSignal, For, onCleanup, Show } from "solid-js";
 import { confirmAction } from "~/kit.tsx";
@@ -84,7 +85,7 @@ export function AutomationsPage() {
 								</SwitchUI.Root>
 								<b>{a.name}</b>
 								<Tag>{KIND_FA[a.kind]}</Tag>
-								<Tag class="ltr">{a.schedule}</Tag>
+								<Tag title={a.schedule}>🕘 {scheduleText(a.schedule)}</Tag>
 								<Show when={a.kind === "agent"}>
 									<Tag>{PROVIDER_ICON[a.provider ?? status()?.settings.provider ?? "claude"]} {a.provider ?? "پیش‌فرض"}</Tag>
 								</Show>
@@ -123,7 +124,12 @@ export function AutomationsPage() {
 									</label>
 									<label>
 										<div class="field-label">زمان‌بندی</div>
-										<TextInput class="ltr" value={a.schedule} onChange={(e) => save(a.id, { schedule: e.currentTarget.value })} />
+										<Btn style={{ width: "100%", "justify-content": "flex-start" }} onClick={async () => {
+											const next = await editSchedule(a.schedule);
+											if (next) save(a.id, { schedule: next });
+										}}>
+											🕘 {scheduleText(a.schedule)} · تغییر
+										</Btn>
 									</label>
 									<Show when={a.kind === "agent" && status()}>
 										<div>
