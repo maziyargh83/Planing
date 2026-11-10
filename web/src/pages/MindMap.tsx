@@ -1,3 +1,4 @@
+import { Btn, Panel, Tag, TextArea } from "~/components/app.tsx";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { confirmAction } from "~/kit.tsx";
 
@@ -87,9 +88,9 @@ export function MindMap(props: { projectKey: string; title: string; tree: MindNo
 				<div class="mm-legend">
 					<For each={Object.keys(KIND_FA)}>
 						{(k) => (
-							<span class="chip" style={{ color: KIND_COLOR[k] }}>
+							<Tag style={{ color: KIND_COLOR[k] }}>
 								{KIND_ICON[k]} {KIND_FA[k]}
-							</span>
+							</Tag>
 						)}
 					</For>
 				</div>
@@ -139,7 +140,7 @@ export function MindMap(props: { projectKey: string; title: string; tree: MindNo
 									</Show>
 									<span class="txt">{p.node!.text}</span>
 									<Show when={p.node!.task_id}>
-										<span class="linked chip accent">تسک</span>
+										<Tag class="linked accent">تسک</Tag>
 									</Show>
 									<button
 										class="plus"
@@ -160,16 +161,16 @@ export function MindMap(props: { projectKey: string; title: string; tree: MindNo
 
 			<Show when={sel()}>
 				{(node) => (
-					<div class="card mm-panel" style={{ position: "absolute", top: "52px", left: "12px", width: "320px", "box-shadow": "var(--shadow)", "z-index": 5 }}>
+					<Panel class="mm-panel" style={{ position: "absolute", top: "52px", left: "12px", width: "320px", "box-shadow": "var(--shadow)", "z-index": 5 }}>
 						<div class="row" style={{ "margin-bottom": "8px" }}>
-							<span class="chip faint">#{node().id}</span>
+							<Tag class="faint">#{node().id}</Tag>
 							<span class="spacer" />
-							<button class="btn ghost sm" onClick={() => setSelected(null)}>
+							<Btn kind="ghost sm" onClick={() => setSelected(null)}>
 								✕
-							</button>
+							</Btn>
 						</div>
-						<textarea
-							class="textarea"
+						<TextArea
+						
 							rows="2"
 							value={node().text}
 							ref={(el) => focusText() && queueMicrotask(() => (el.focus(), el.select()))}
@@ -178,48 +179,48 @@ export function MindMap(props: { projectKey: string; title: string; tree: MindNo
 						<div class="row wrap" style={{ margin: "8px 0", gap: "4px" }}>
 							<For each={Object.keys(KIND_FA)}>
 								{(k) => (
-									<button
-										class="btn sm"
+									<Btn
+									 kind="sm"
 										style={{ "border-color": node().kind === k ? KIND_COLOR[k] : undefined, color: node().kind === k ? KIND_COLOR[k] : undefined }}
 										onClick={() => rpc("updateNode", node().id, { kind: k })}
 									>
 										{KIND_ICON[k]} {KIND_FA[k]}
-									</button>
+									</Btn>
 								)}
 							</For>
 						</div>
-						<textarea
-							class="textarea"
+						<TextArea
+						
 							rows="2"
 							placeholder="یادداشت، منبع، عدد…"
 							value={node().note ?? ""}
 							onChange={(e) => rpc("updateNode", node().id, { note: e.currentTarget.value || null })}
 						/>
 						<div class="row wrap" style={{ "margin-top": "10px" }}>
-							<button class="btn sm" onClick={() => addChild(node().id)}>
+							<Btn kind="sm" onClick={() => addChild(node().id)}>
 								+ شاخه
-							</button>
+							</Btn>
 							<Show
 								when={node().task_id}
 								fallback={
-									<button class="btn sm" onClick={() => rpc("nodeToTask", node().id).then((t) => toast(`تسک ${t.key} ساخته شد`, "win"))}>
+									<Btn kind="sm" onClick={() => rpc("nodeToTask", node().id).then((t) => toast(`تسک ${t.key} ساخته شد`, "win"))}>
 										→ تبدیل به تسک
-									</button>
+									</Btn>
 								}
 							>
-								<button class="btn sm" onClick={() => openTask(String(node().task_id))}>
+								<Btn kind="sm" onClick={() => openTask(String(node().task_id))}>
 									باز کردن تسک
-								</button>
+								</Btn>
 							</Show>
 							<span class="spacer" />
-							<button
-								class="btn ghost danger sm"
+							<Btn
+							 kind="ghost danger sm"
 								onClick={async () => (await confirmAction("این گره و شاخه‌هایش حذف شوند؟")) && rpc("deleteNode", node().id).then(() => setSelected(null))}
 							>
 								حذف
-							</button>
+							</Btn>
 						</div>
-					</div>
+					</Panel>
 				)}
 			</Show>
 		</div>

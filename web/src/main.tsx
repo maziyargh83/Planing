@@ -9,6 +9,7 @@ import { ago, connectStream, fa, feed, online, rpc, version } from "./api.ts";
 import { AssistantPage, AutomationsPage } from "./pages/Assistant.tsx";
 import { GrowthPage, PeoplePage } from "./pages/Growth.tsx";
 import { KnowledgePage } from "./pages/Knowledge.tsx";
+import { OverviewPage, TasksPage, WorkspaceSwitcher } from "./pages/Workspaces.tsx";
 import { MemoryPage, Connect, Goals, Inbox, InsightsPage } from "./pages/Pages.tsx";
 import { ProjectPage, Projects } from "./pages/Projects.tsx";
 import { Today } from "./pages/Today.tsx";
@@ -18,7 +19,9 @@ import { openPalette, Palette } from "./palette.tsx";
 import { route, TaskDrawer } from "./ui.tsx";
 
 const NAV = [
+	["/overview", "🌐", "نمای کلی"],
 	["/today", "☀️", "امروز"],
+	["/tasks", "📋", "تسک‌ها"],
 	["/assistant", "✳️", "دستیار"],
 	["/inbox", "📥", "صندوق"],
 	["/projects", "🧩", "پروژه‌ها"],
@@ -59,6 +62,7 @@ function App() {
 						<small>قدم‌به‌قدم با ایجنت‌هایت</small>
 					</div>
 				</div>
+				<WorkspaceSwitcher />
 				<button class="capture-btn" onClick={() => openPalette()}>
 					<span>＋ ثبت سریع یا جستجو</span>
 					<span class="kbd">⌘K</span>
@@ -103,6 +107,12 @@ function App() {
 					</Match>
 					<Match when={route().startsWith("/assistant")}>
 						<AssistantPage />
+					</Match>
+					<Match when={route() === "/overview"}>
+						<OverviewPage />
+					</Match>
+					<Match when={route() === "/tasks"}>
+						<TasksPage />
 					</Match>
 					<Match when={route() === "/growth"}>
 						<GrowthPage />

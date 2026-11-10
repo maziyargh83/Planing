@@ -80,7 +80,7 @@ export async function standupContext(p: Planner, day = localDay()) {
 
 	const [commits, reviews, team] = await Promise.all([
 		gitActivity(p, { since: `${since} 00:00` }).catch(() => []),
-		openReviews().catch(() => []),
+		openReviews(p).catch(() => []),
 		teamStatus(p).catch(() => []),
 	]);
 

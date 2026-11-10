@@ -1,3 +1,4 @@
+import { Tag } from "~/components/app.tsx";
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 
 import * as Dialog from "~/components/ui/dialog";
@@ -201,23 +202,23 @@ export function Palette() {
 					<Show when={capture()}>
 						{(c) => (
 							<div class="capture-preview">
-								<span class="chip accent">{INTENT_FA[c().intent]}</span>
+								<Tag class="accent">{INTENT_FA[c().intent]}</Tag>
 								<Show when={c().text}>
 									<b>{c().text}</b>
 								</Show>
 								<Show when={c().person}>
-									<span class="chip">👤 {c().person!.name}</span>
+									<Tag>👤 {c().person!.name}</Tag>
 								</Show>
 								<Show when={c().dueLabel}>
-									<span class="chip">📅 {c().dueLabel}</span>
+									<Tag>📅 {c().dueLabel}</Tag>
 								</Show>
 								<Show when={c().priority != null}>
-									<span class="chip P0">P{c().priority}</span>
+									<Tag class="P0">P{c().priority}</Tag>
 								</Show>
 								<Show when={c().project}>
-									<span class="chip key">@{c().project}</span>
+									<Tag class="key">@{c().project}</Tag>
 								</Show>
-								<For each={c().tags}>{(t) => <span class="chip">#{t}</span>}</For>
+								<For each={c().tags}>{(t) => <Tag>#{t}</Tag>}</For>
 							</div>
 						)}
 					</Show>
@@ -232,7 +233,7 @@ export function Palette() {
 											<div class="small faint" innerHTML={item.html} />
 										</Show>
 									</div>
-									<span class="chip">{item.hint}</span>
+									<Tag>{item.hint}</Tag>
 								</div>
 							)}
 						</For>

@@ -1,7 +1,8 @@
+import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { ask, confirmAction, DATE_SUGGESTIONS, todayIso } from "~/kit.tsx";
 
-import { ago, fa, jalali, rpc, toast, version } from "../api.ts";
+import { ago, fa, jalali, rpc, toast, version, wsHeaders } from "../api.ts";
 import { go } from "../ui.tsx";
 import { TEMPLATES } from "../templates.ts";
 import { Markdown } from "./Assistant.tsx";
@@ -32,7 +33,7 @@ export const DOC_KIND_FA: Record<string, string> = {
 
 /** Asks the assistant something and jumps to the conversation. */
 export async function askAssistant(text: string) {
-	const res = await fetch("/api/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }).then((r) => r.json());
+	const res = await fetch("/api/assistant", { method: "POST", headers: wsHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ text }) }).then((r) => r.json());
 	if (res.error) return toast(res.error.message, "error");
 	go(`/assistant/${res.data.thread}`);
 }
@@ -57,7 +58,7 @@ export function KnowledgePage() {
 		setUploading(true);
 		const form = new FormData();
 		for (const f of files) form.append("file", f);
-		const res = await fetch("/api/files", { method: "POST", body: form }).then((r) => r.json());
+		const res = await fetch("/api/files", { method: "POST", body: form, headers: wsHeaders() }).then((r) => r.json());
 		setUploading(false);
 		if (res.error) return toast(res.error.message, "error");
 		toast(`${fa(res.data.length)} فایل به دانش اضافه شد`, "win");
@@ -95,8 +96,8 @@ export function KnowledgePage() {
 			</div>
 
 			<div class="grid g2" style={{ "margin-bottom": "16px" }}>
-				<div
-					class="card dropzone"
+				<Panel
+				 class="dropzone"
 					classList={{ over: dragging() }}
 					onDragOver={(e) => (e.preventDefault(), setDragging(true))}
 					onDragLeave={() => setDragging(false)}
@@ -111,36 +112,28 @@ export function KnowledgePage() {
 					<div style={{ "font-size": "30px" }}>{uploading() ? "⏳" : "📥"}</div>
 					<b>فایل را این‌جا بینداز یا کلیک کن</b>
 					<div class="small muted">md، txt، csv، json، docx، rtf و html خوانده می‌شوند. PDF و تصویر ذخیره می‌شوند و می‌توانی خلاصه‌شان را بنویسی.</div>
-				</div>
+				</Panel>
 				<form class="card stack" onSubmit={create}>
 					<div class="row">
-						<select class="input" style={{ width: "auto" }} onChange={(e) => setNewKind(e.currentTarget.value)}>
-							<For each={Object.entries(DOC_KIND_FA)}>
-								{([k, v]) => (
-									<option value={k} selected={k === newKind()}>
-										{v}
-									</option>
-								)}
-							</For>
-						</select>
-						<input class="input" placeholder="عنوان (مثلاً ۱:۱ با شایان)" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
+						<Choice value={newKind()} options={Object.entries(DOC_KIND_FA).map(([value, label]) => ({ value, label }))} onChange={setNewKind} />
+						<TextInput placeholder="عنوان (مثلاً ۱:۱ با شایان)" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
 					</div>
-					<input class="input" placeholder="آدم‌ها (با کاما)" value={people()} onInput={(e) => setPeople(e.currentTarget.value)} />
-					<textarea class="textarea" rows="3" placeholder="پلن، نکته‌ها یا متن را بچسبان…" value={body()} onInput={(e) => setBody(e.currentTarget.value)} />
+					<TextInput placeholder="آدم‌ها (با کاما)" value={people()} onInput={(e) => setPeople(e.currentTarget.value)} />
+					<TextArea rows="3" placeholder="پلن، نکته‌ها یا متن را بچسبان…" value={body()} onInput={(e) => setBody(e.currentTarget.value)} />
 					<div class="row">
 						<span class="spacer" />
-						<button class="btn primary sm">ذخیره</button>
+						<Btn kind="primary sm">ذخیره</Btn>
 					</div>
 				</form>
 			</div>
 
-			<div class="card" style={{ "margin-bottom": "16px" }}>
+			<Panel style={{ "margin-bottom": "16px" }}>
 				<h3>🗓 جلسه‌ی بعدی را آماده برو</h3>
 				<div class="row wrap">
 					<For each={TEMPLATES}>
 						{(t) => (
-							<button
-								class="btn"
+							<Btn
+							
 								onClick={async () => {
 									const people = await rpc<{ name: string; relation: string }[]>("people");
 									const order = t.id === "one_on_one_manager" ? ["manager"] : t.id === "one_on_one_report" ? ["report"] : [];
@@ -172,24 +165,24 @@ export function KnowledgePage() {
 								}}
 							>
 								{t.label}
-							</button>
+							</Btn>
 						)}
 					</For>
 				</div>
 				<div class="small faint" style={{ "margin-top": "6px" }}>
 					قالب را باز کن و «🎯 آماده‌سازی با دستیار» را بزن تا از جیرا، گیت، پیگیری‌ها و جلسه‌های قبلی پرش کند. بعد از جلسه «🔁 بازبینی» را بزن.
 				</div>
-			</div>
+			</Panel>
 
 			<div class="row wrap" style={{ "margin-bottom": "12px" }}>
-				<button class="btn sm" classList={{ primary: !kind() }} onClick={() => setKind(null)}>
+				<Btn kind="sm" active={!kind()} onClick={() => setKind(null)}>
 					همه
-				</button>
+				</Btn>
 				<For each={Object.entries(DOC_KIND_FA)}>
 					{([k, v]) => (
-						<button class="btn sm" classList={{ primary: kind() === k }} onClick={() => setKind(k)}>
+						<Btn kind="sm" active={kind() === k} onClick={() => setKind(k)}>
 							{v}
-						</button>
+						</Btn>
 					)}
 				</For>
 			</div>
@@ -197,15 +190,15 @@ export function KnowledgePage() {
 			<div class="stack" style={{ gap: "10px" }}>
 				<For each={docs()} fallback={<div class="empty">هنوز چیزی ذخیره نکردی. پلن جلسه‌ی بعدی‌ات را اضافه کن.</div>}>
 					{(d) => (
-						<div class="card">
+						<Panel>
 							<div class="row wrap" style={{ cursor: "pointer" }} onClick={() => setOpenId(openId() === d.id ? null : d.id)}>
-								<span class="chip">{DOC_KIND_FA[d.kind]}</span>
+								<Tag>{DOC_KIND_FA[d.kind]}</Tag>
 								<b>{d.title}</b>
 								<Show when={d.people}>
-									<span class="chip">👥 {d.people}</span>
+									<Tag>👥 {d.people}</Tag>
 								</Show>
 								<Show when={d.open_followups}>
-									<span class="chip accent">↩ {fa(d.open_followups)} پیگیری</span>
+									<Tag class="accent">↩ {fa(d.open_followups)} پیگیری</Tag>
 								</Show>
 								<span class="spacer" />
 								<span class="small faint">{d.day ? jalali(d.day) : ago(d.created_at)}</span>
@@ -218,7 +211,7 @@ export function KnowledgePage() {
 							<Show when={openId() === d.id}>
 								<DocView id={d.id} onChange={refetch} />
 							</Show>
-						</div>
+						</Panel>
 					)}
 				</For>
 			</div>
@@ -247,12 +240,12 @@ function DocView(props: { id: number; onChange: () => void }) {
 			{(d) => (
 				<div class="stack" style={{ "margin-top": "10px" }}>
 					<div class="row wrap">
-						<button class="btn sm primary" onClick={() => askAssistant(`سند #${d().id} («${d().title}») را با doc_get بخوان. یک خلاصه‌ی سه‌خطی در summary آن ذخیره کن، تصمیم‌ها را با decision_save، پیگیری‌ها را با followup_save (با doc ${d().id}) و کارهای واقعی را با task_create ثبت کن. بعد بگو چه چیزهایی ساختی.`)}>
+						<Btn kind="sm primary" onClick={() => askAssistant(`سند #${d().id} («${d().title}») را با doc_get بخوان. یک خلاصه‌ی سه‌خطی در summary آن ذخیره کن، تصمیم‌ها را با decision_save، پیگیری‌ها را با followup_save (با doc ${d().id}) و کارهای واقعی را با task_create ثبت کن. بعد بگو چه چیزهایی ساختی.`)}>
 							✳️ پردازش با دستیار
-						</button>
+						</Btn>
 						<Show when={d().kind === "meeting"}>
-							<button
-								class="btn sm"
+							<Btn
+							 kind="sm"
 								onClick={() =>
 									askAssistant(
 										`مرا برای جلسه‌ی سند #${d().id} («${d().title}») آماده کن. doc_get را بخوان و بخش «قبل از جلسه» را از روی داده‌ی واقعی پر کن: پیگیری‌های باز با ${d().people.map((p) => p.name).join("، ") || "حاضران"} (followup_list)، team_status، جلسه‌های قبلی با همین آدم‌ها (doc_list)، استندآپ‌ها و تصمیم‌های اخیر و اهداف SFPM. حداقل یک نکته‌ی منفی یا ریسک واقعی و مشخص بنویس (نه «همه‌چیز عالی است»). نتیجه را با doc_save در body همین سند ذخیره کن و خلاصه‌اش را به من بگو.`,
@@ -260,9 +253,9 @@ function DocView(props: { id: number; onChange: () => void }) {
 								}
 							>
 								🎯 آماده‌سازی با دستیار
-							</button>
-							<button
-								class="btn sm"
+							</Btn>
+							<Btn
+							 kind="sm"
 								onClick={() =>
 									askAssistant(
 										`جلسه‌ی سند #${d().id} («${d().title}») تمام شد. با doc_get یادداشت‌ها را بخوان. از من بپرس چطور گذشت و چقدر آماده بودم (۱ تا ۵). بعد: خلاصه‌ی سه‌خطی را در summary سند بنویس، تصمیم‌ها را decision_save، پیگیری‌ها را followup_save (doc ${d().id}) و برای هر حاضر interaction_log ثبت کن. یک درس کوتاه درباره‌ی جلسه‌داری‌ام را با journal_add (kind lesson) ذخیره کن.`,
@@ -270,18 +263,18 @@ function DocView(props: { id: number; onChange: () => void }) {
 								}
 							>
 								🔁 بازبینی بعد از جلسه
-							</button>
+							</Btn>
 						</Show>
 						<span class="spacer" />
-						<input class="input ltr" type="date" style={{ width: "auto" }} value={d().day ?? ""} onChange={(e) => save({ day: e.currentTarget.value || null })} />
-						<button class="btn ghost sm danger" onClick={async () => (await confirmAction(`«${d().title}» حذف شود؟`)) && rpc("deleteDoc", d().id).then(props.onChange)}>
+						<TextInput class="ltr" type="date" style={{ width: "auto" }} value={d().day ?? ""} onChange={(e) => save({ day: e.currentTarget.value || null })} />
+						<Btn kind="ghost sm danger" onClick={async () => (await confirmAction(`«${d().title}» حذف شود؟`)) && rpc("deleteDoc", d().id).then(props.onChange)}>
 							حذف
-						</button>
+						</Btn>
 					</div>
 					<div class="field-label">خلاصه</div>
-					<textarea class="textarea" rows="2" value={d().summary ?? ""} placeholder="خلاصه‌ی کوتاه (یا بگذار دستیار بنویسد)" onChange={(e) => save({ summary: e.currentTarget.value || null })} />
+					<TextArea rows="2" value={d().summary ?? ""} placeholder="خلاصه‌ی کوتاه (یا بگذار دستیار بنویسد)" onChange={(e) => save({ summary: e.currentTarget.value || null })} />
 					<div class="field-label">متن</div>
-					<textarea class="textarea" rows="8" value={d().body ?? ""} onChange={(e) => save({ body: e.currentTarget.value || null })} />
+					<TextArea rows="8" value={d().body ?? ""} onChange={(e) => save({ body: e.currentTarget.value || null })} />
 					<Show when={d().followups.length}>
 						<div class="field-label">پیگیری‌های این سند</div>
 						<For each={d().followups}>
@@ -290,7 +283,7 @@ function DocView(props: { id: number; onChange: () => void }) {
 									<span>{f.direction === "mine" ? "↗ من باید" : "↙ منتظر"}</span>
 									<b>{f.person}</b>
 									<span style={{ flex: 1 }}>{f.text}</span>
-									<span class="chip">{f.status}</span>
+									<Tag>{f.status}</Tag>
 								</div>
 							)}
 						</For>

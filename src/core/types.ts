@@ -172,7 +172,7 @@ export class GaamError extends Error {
 	}
 }
 
-export const PROVIDERS = ["claude", "codex", "ollama"] as const;
+export const PROVIDERS = ["anthropic", "claude", "codex", "ollama"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
 export interface Thread {
@@ -182,6 +182,9 @@ export interface Thread {
 	model: string | null;
 	origin: string;
 	session: string | null;
+	workspace: string | null;
+	effort: string | null;
+	pinned: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -192,6 +195,9 @@ export interface Message {
 	role: "user" | "assistant" | "error";
 	content: string;
 	tools: string[];
+	/** Assistant messages: the folded stream (text, reasoning, tool calls). See src/ai/protocol.ts. */
+	parts: unknown[];
+	meta: Record<string, unknown>;
 	created_at: string;
 }
 

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { basename } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
 import type { Planner } from "../core/planner.ts";
@@ -9,13 +10,48 @@ import { GaamError, type Task } from "../core/types.ts";
 const run = promisify(execFile);
 const KEY_PATTERN = /\b[A-Z][A-Z0-9]{0,9}-\d+\b/g;
 
-/** Repositories to watch: GAAM_REPOS (comma separated) plus every project's repo_path. */
+/**
+ * Repositories to watch: the active workspace's repos (all workspaces when unscoped),
+ * plus projects' repo_path. GAAM_REPOS is a fallback for setups without workspaces.
+ */
 export function repos(p: Planner): string[] {
-	const fromEnv = (process.env.GAAM_REPOS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-	const fromProjects = (p.db.prepare("select repo_path from projects where repo_path is not null").all() as { repo_path: string }[]).map(
-		(r) => r.repo_path,
-	);
-	return [...new Set([...fromEnv, ...fromProjects])].filter((r) => existsSync(r));
+	const workspaces = p.workspace == null ? p.listWorkspaces() : [p.resolveWorkspace(p.workspace)];
+	const fromWorkspaces = workspaces.flatMap((w) => w.repos);
+	const fromProjects = (
+		p.db.prepare(`select repo_path from projects where repo_path is not null${p.ws()}`).all() as { repo_path: string }[]
+	).map((r) => r.repo_path);
+	const fromEnv = fromWorkspaces.length ? [] : (process.env.GAAM_REPOS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+	return [...new Set([...fromWorkspaces, ...fromProjects, ...fromEnv])].filter((r) => existsSync(r));
+}
+
+/**
+ * Finds git repositories under the given folders and sorts them into workspaces by
+ * remote: company hosts (GITLAB_URL, git.snappfood.ir) go to the work workspace,
+ * GitHub and remote-less repos go to the personal one. Existing repo lists are kept.
+ */
+export async function detectRepos(p: Planner, roots = [join(homedir(), "development"), join(homedir(), "Planing")]) {
+	const all = p.listWorkspaces();
+	const work = all.find((w) => w.kind === "work");
+	const personal = all.find((w) => w.kind === "personal");
+	const workHost = new URL(process.env.GITLAB_URL ?? "https://git.snappfood.ir").hostname;
+	const found: { path: string; remote: string | null; workspace: string | null }[] = [];
+	const candidates = roots.flatMap((root) => {
+		if (!existsSync(root)) return [];
+		if (existsSync(join(root, ".git"))) return [root];
+		return readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(root, d.name));
+	});
+	for (const dir of candidates) {
+		if (!existsSync(join(dir, ".git"))) continue;
+		const remote = await git(dir, "remote", "get-url", "origin").catch(() => null);
+		const target = remote?.includes(workHost) ? work : personal;
+		found.push({ path: dir, remote, workspace: target?.key ?? null });
+	}
+	for (const w of [work, personal]) {
+		if (!w) continue;
+		const mine = found.filter((f) => f.workspace === w.key).map((f) => f.path);
+		p.saveWorkspace({ id: w.id, repos: [...w.repos, ...mine] });
+	}
+	return found;
 }
 
 async function git(repo: string, ...args: string[]) {
@@ -78,7 +114,7 @@ export async function gitSync(p: Planner, since = "14 days ago") {
 			p.linkTask(task.id, { kind: "commit", ref: `${c.repo}@${c.sha}`, title: c.subject });
 			linked.push(`${task.key} ← ${c.repo}@${c.sha}`);
 		}
-	const reviews = await openReviews().catch(() => []);
+	const reviews = await openReviews(p).catch(() => []);
 	for (const mr of reviews)
 		for (const key of `${mr.title} ${mr.branch}`.toUpperCase().match(KEY_PATTERN) ?? []) {
 			const task = taskByAnyKey(p, key);
@@ -99,11 +135,15 @@ export interface Review {
 	source: "gitlab" | "github";
 }
 
-/** Your open merge requests (GitLab) and pull requests (GitHub). */
-export async function openReviews(): Promise<Review[]> {
+/**
+ * Your open merge requests (GitLab, the work workspace) and pull requests
+ * (GitHub, the personal one). Scoped to the planner's workspace kind.
+ */
+export async function openReviews(p?: Planner): Promise<Review[]> {
 	const out: Review[] = [];
+	const kind = p?.workspace == null ? null : p.resolveWorkspace(p.workspace).kind;
 	const gitlab = process.env.GITLAB_URL?.replace(/\/$/, "");
-	if (gitlab && process.env.GITLAB_TOKEN) {
+	if (gitlab && process.env.GITLAB_TOKEN && kind !== "personal") {
 		const res = await fetch(`${gitlab}/api/v4/merge_requests?scope=created_by_me&state=opened&per_page=50`, {
 			headers: { "PRIVATE-TOKEN": process.env.GITLAB_TOKEN },
 		});
@@ -127,7 +167,7 @@ export async function openReviews(): Promise<Review[]> {
 				source: "gitlab",
 			});
 	}
-	if (process.env.GITHUB_TOKEN) {
+	if (process.env.GITHUB_TOKEN && kind !== "work") {
 		const res = await fetch("https://api.github.com/search/issues?q=is:pr+is:open+author:@me&per_page=50", {
 			headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" },
 		});

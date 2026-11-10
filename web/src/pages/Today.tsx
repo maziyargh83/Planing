@@ -1,3 +1,4 @@
+import { Btn, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js";
 
 import { type Ask, fa, jalali, rpc, type Task, toast, version } from "../api.ts";
@@ -29,7 +30,7 @@ export function AskCard(props: { ask: Ask }) {
 				🤖 {a().asked_by}
 				<span class="spacer" />
 				<Show when={a().kind === "data"}>
-					<span class="chip">📊 داده</span>
+					<Tag>📊 داده</Tag>
 				</Show>
 			</div>
 			<div class="q">{a().question}</div>
@@ -58,28 +59,28 @@ export function AskCard(props: { ask: Ask }) {
 						>
 							<Show
 								when={a().kind === "data"}
-								fallback={<input class="input" type={a().kind === "number" ? "number" : "text"} placeholder="جواب…" value={text()} onInput={(e) => setText(e.currentTarget.value)} />}
+								fallback={<TextInput type={a().kind === "number" ? "number" : "text"} placeholder="جواب…" value={text()} onInput={(e) => setText(e.currentTarget.value)} />}
 							>
-								<textarea class="textarea" rows="3" placeholder="داده را این‌جا بچسبان (عدد، جدول، CSV، لینک)…" value={text()} onInput={(e) => setText(e.currentTarget.value)} />
+								<TextArea rows="3" placeholder="داده را این‌جا بچسبان (عدد، جدول، CSV، لینک)…" value={text()} onInput={(e) => setText(e.currentTarget.value)} />
 							</Show>
-							<button class="btn primary sm">ثبت</button>
-							<button type="button" class="btn ghost sm" onClick={() => answer(null)}>
+							<Btn kind="primary sm">ثبت</Btn>
+							<Btn type="button" kind="ghost sm" onClick={() => answer(null)}>
 								بعداً نه
-							</button>
+							</Btn>
 						</form>
 					}
 				>
 					<div class="row wrap" style={{ "margin-top": "8px" }}>
 						<For each={a().kind === "confirm" ? ["بله", "نه"] : a().choices ?? []}>
 							{(choice) => (
-								<button class="btn sm" onClick={() => answer(choice)}>
+								<Btn kind="sm" onClick={() => answer(choice)}>
 									{choice}
-								</button>
+								</Btn>
 							)}
 						</For>
-						<button class="btn ghost sm" onClick={() => answer(null)}>
+						<Btn kind="ghost sm" onClick={() => answer(null)}>
 							رد
-						</button>
+						</Btn>
 					</div>
 				</Show>
 			</Show>
@@ -99,18 +100,18 @@ function FocusTimer(props: { running: { started_at: string; task_key: string | n
 		return `${mm}:${ss}`;
 	};
 	return (
-		<div class="card focus-ring">
+		<Panel class="focus-ring">
 			<h3 style={{ "align-self": "stretch" }}>⏱ تمرکز</h3>
 			<div class="focus-time" style={{ color: props.running ? "var(--accent)" : "var(--faint)" }}>
 				{elapsed()}
 			</div>
 			<div class="small muted">{props.running ? (props.running.task_title ?? "تمرکز آزاد") : "یک تسک را باز کن و «شروع تمرکز» بزن"}</div>
-			<Show when={props.running} fallback={<button class="btn" onClick={() => rpc("startFocus", null)}>شروع تمرکز آزاد</button>}>
-				<button class="btn primary" onClick={() => rpc("stopFocus").then((r) => r && toast(`${fa(r.minutes)} دقیقه ثبت شد`, "win"))}>
+			<Show when={props.running} fallback={<Btn onClick={() => rpc("startFocus", null)}>شروع تمرکز آزاد</Btn>}>
+				<Btn kind="primary" onClick={() => rpc("stopFocus").then((r) => r && toast(`${fa(r.minutes)} دقیقه ثبت شد`, "win"))}>
 					پایان
-				</button>
+				</Btn>
 			</Show>
-		</div>
+		</Panel>
 	);
 }
 
@@ -153,7 +154,7 @@ export function Today() {
 			<NextStep nudges={ctx().nudges} />
 
 			<div class="hero">
-				<div class="card">
+				<Panel>
 					<h3>🎯 نیت امروز</h3>
 					<input
 						class="inline-edit intention"
@@ -163,9 +164,9 @@ export function Today() {
 					/>
 					<div class="row" style={{ "margin-top": "16px", "justify-content": "space-between" }}>
 						<h3 style={{ margin: 0 }}>سه کار مهم</h3>
-						<button class="btn ghost sm" onClick={() => setPicking(!picking())}>
+						<Btn kind="ghost sm" onClick={() => setPicking(!picking())}>
 							{picking() ? "بستن" : "انتخاب"}
-						</button>
+						</Btn>
 					</div>
 					<div class="top3" style={{ "margin-top": "8px" }}>
 						<For each={day()?.top} fallback={<div class="empty small">هنوز انتخاب نکردی. از «بعدی‌ها» سه تا را بردار.</div>}>
@@ -173,17 +174,17 @@ export function Today() {
 								<div class="slot" classList={{ done: t.status === "done" }}>
 									<span style={{ cursor: "pointer" }} onClick={() => openTask(t.key)}>
 										{t.title}
-										<span class="chip key" style={{ "margin-inline-start": "8px" }}>
+										<Tag class="key" style={{ "margin-inline-start": "8px" }}>
 											{t.key}
-										</span>
+										</Tag>
 									</span>
 									<div class="row">
-										<button class="btn ghost sm" title="شروع تمرکز" onClick={() => rpc("startFocus", t.key)}>
+										<Btn kind="ghost sm" title="شروع تمرکز" onClick={() => rpc("startFocus", t.key)}>
 											▶
-										</button>
-										<button class="btn sm" onClick={() => setStatus(t, t.status === "done" ? "todo" : "done")}>
+										</Btn>
+										<Btn kind="sm" onClick={() => setStatus(t, t.status === "done" ? "todo" : "done")}>
 											{t.status === "done" ? "↺" : "✓"}
-										</button>
+										</Btn>
 									</div>
 								</div>
 							)}
@@ -197,19 +198,19 @@ export function Today() {
 										task={t}
 										showProject
 										extra={
-											<button class="btn sm" classList={{ primary: topKeys().has(t.key) }} onClick={() => toggleTop(t.key)}>
+											<Btn kind="sm" active={topKeys().has(t.key)} onClick={() => toggleTop(t.key)}>
 												{topKeys().has(t.key) ? "★" : "☆"}
-											</button>
+											</Btn>
 										}
 									/>
 								)}
 							</For>
 						</div>
 					</Show>
-				</div>
+				</Panel>
 
 				<div class="stack" style={{ gap: "16px" }}>
-					<div class="card">
+					<Panel>
 						<h3>حالت چطوره؟</h3>
 						<div class="row" style={{ "justify-content": "space-between" }}>
 							<span class="muted small">انرژی</span>
@@ -235,7 +236,7 @@ export function Today() {
 								</For>
 							</div>
 						</div>
-					</div>
+					</Panel>
 					<FocusTimer running={day()?.running_focus} />
 				</div>
 			</div>
@@ -245,7 +246,7 @@ export function Today() {
 			<div class="grid g2" style={{ "margin-top": "16px" }}>
 				<div class="stack" style={{ gap: "16px" }}>
 					<Show when={ctx().nudges.length}>
-						<div class="card">
+						<Panel>
 							<h3>🧭 مربی</h3>
 							<div class="stack">
 								<For each={ctx().nudges}>
@@ -258,9 +259,9 @@ export function Today() {
 													<div class="row wrap" style={{ "margin-top": "4px" }}>
 														<For each={n.refs!.slice(0, 8)}>
 															{(r) => (
-																<span class="chip key" style={{ cursor: "pointer" }} onClick={() => (r.includes("-") ? openTask(r) : (location.hash = `/p/${r}`))}>
+																<Tag class="key" style={{ cursor: "pointer" }} onClick={() => (r.includes("-") ? openTask(r) : (location.hash = `/p/${r}`))}>
 																	{r}
-																</span>
+																</Tag>
 															)}
 														</For>
 													</div>
@@ -270,10 +271,10 @@ export function Today() {
 									)}
 								</For>
 							</div>
-						</div>
+						</Panel>
 					</Show>
 
-					<div class="card">
+					<Panel>
 						<h3>
 							🔨 در جریان <span class="faint">{fa(ctx().in_progress.length)}</span>
 						</h3>
@@ -282,11 +283,11 @@ export function Today() {
 						</For>
 						<h3 style={{ "margin-top": "14px" }}>⏭ بعدی‌ها (به ترتیب اولویت)</h3>
 						<For each={ctx().next_up.slice(0, 7)}>{(t: Task) => <TaskRow task={t} showProject />}</For>
-					</div>
+					</Panel>
 				</div>
 
 				<div class="stack" style={{ gap: "16px" }}>
-					<div class="card">
+					<Panel>
 						<h3>
 							🤖 سؤال‌های ایجنت‌ها <span class="faint">{fa(ctx().open_asks.length)}</span>
 						</h3>
@@ -295,8 +296,8 @@ export function Today() {
 								{(a: Ask) => <AskCard ask={a} />}
 							</For>
 						</div>
-					</div>
-					<div class="card">
+					</Panel>
+					<Panel>
 						<h3>✅ امروز انجام شد</h3>
 						<For each={day()?.completed} fallback={<div class="faint small">هنوز هیچ. اولین قدم کوچک را بردار.</div>}>
 							{(t: Task) => (
@@ -311,7 +312,7 @@ export function Today() {
 						<div class="row small muted" style={{ "margin-top": "10px" }}>
 							⏱ {fa(Math.round(day()?.focus_minutes ?? 0))} دقیقه تمرکز
 						</div>
-					</div>
+					</Panel>
 					<Followups compact />
 					<JournalBox />
 				</div>
@@ -336,20 +337,20 @@ function JournalBox() {
 		toast("در ژورنال ثبت شد");
 	};
 	return (
-		<div class="card">
+		<Panel>
 			<h3>📓 ژورنال</h3>
 			<div class="row wrap" style={{ "margin-bottom": "8px" }}>
 				<For each={kinds}>
 					{([k, label]) => (
-						<button class="btn sm" classList={{ primary: kind() === k }} onClick={() => setKind(k!)}>
+						<Btn kind="sm" active={kind() === k} onClick={() => setKind(k!)}>
 							{label}
-						</button>
+						</Btn>
 					)}
 				</For>
 			</div>
-			<textarea
+			<TextArea
 				ref={input}
-				class="textarea"
+			
 				rows="3"
 				placeholder="چه فکری توی سرته؟ (Enter ثبت، Shift+Enter خط جدید)"
 				onKeyDown={(e) => {
@@ -361,11 +362,11 @@ function JournalBox() {
 			/>
 			<div class="row" style={{ "margin-top": "6px" }}>
 				<span class="spacer" />
-				<button class="btn primary sm" onClick={save}>
+				<Btn kind="primary sm" onClick={save}>
 					ثبت
-				</button>
+				</Btn>
 			</div>
-		</div>
+		</Panel>
 	);
 }
 
@@ -435,14 +436,14 @@ export function NextStep(props: { nudges: Nudge[] }) {
 							<div>{n().message}</div>
 						</div>
 						<Show when={action()}>
-							<button class="btn primary" onClick={() => action()!.run()}>
+							<Btn kind="primary" onClick={() => action()!.run()}>
 								{action()!.label}
-							</button>
+							</Btn>
 						</Show>
 						<Show when={ranked().length > 1}>
-							<button class="btn ghost sm" title="پیشنهاد بعدی" onClick={() => setIndex((i) => i + 1)}>
+							<Btn kind="ghost sm" title="پیشنهاد بعدی" onClick={() => setIndex((i) => i + 1)}>
 								{fa((index() % ranked().length) + 1)}/{fa(ranked().length)} ←
-							</button>
+							</Btn>
 						</Show>
 					</div>
 				);

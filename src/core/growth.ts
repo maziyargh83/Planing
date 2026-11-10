@@ -87,7 +87,7 @@ export class Growth {
 		const rows = this.p.all<Person & { interactions: number; last_kind: string | null }>(
 			`select pe.*, (select count(*) from interactions i where i.person_id = pe.id) as interactions,
 				(select kind from interactions i where i.person_id = pe.id order by day desc, id desc limit 1) as last_kind
-			from people pe order by case relation when 'manager' then 0 when 'report' then 1 when 'peer' then 2 when 'product' then 3 else 4 end, name`,
+			from people pe where 1 = 1${this.p.ws("pe")} order by case relation when 'manager' then 0 when 'report' then 1 when 'peer' then 2 when 'product' then 3 else 4 end, name`,
 		);
 		const now = Date.now();
 		return rows
@@ -123,7 +123,7 @@ export class Growth {
 			this.p.patch("people", existing.id, values, false);
 			return this.resolvePerson(existing.id);
 		}
-		const newId = this.p.insert("people", values);
+		const newId = this.p.insert("people", { ...values, workspace_id: this.p.targetWorkspace() });
 		this.p.log("person.added", "person", newId, input.name);
 		return this.resolvePerson(newId);
 	}
@@ -151,7 +151,7 @@ export class Growth {
 	// ── Follow-ups ──────────────────────────────────────────────────────────
 
 	followups(filter: { status?: "open" | "done" | "dropped"; person?: string | number; direction?: "mine" | "theirs" } = {}) {
-		const where = ["1 = 1"];
+		const where = [`1 = 1${this.p.ws("f")}`];
 		const params: (string | number)[] = [];
 		if (filter.status) {
 			where.push("f.status = ?");
@@ -202,7 +202,7 @@ export class Growth {
 		if (id) this.p.patch("followups", id, values, false);
 		else {
 			if (!input.text) throw new GaamError("INVALID", "text is required");
-			id = this.p.insert("followups", { ...values, direction: input.direction ?? "mine", author: this.p.actor });
+			id = this.p.insert("followups", { ...values, direction: input.direction ?? "mine", author: this.p.actor, workspace_id: this.p.targetWorkspace() });
 		}
 		const row = this.followups().find((f) => f.id === id)!;
 		this.p.log(input.id ? `followup.${row.status}` : "followup.added", "followup", id, `${row.person ?? ""} · ${row.text.slice(0, 100)}`);
@@ -216,7 +216,7 @@ export class Growth {
 	// ── Decisions ───────────────────────────────────────────────────────────
 
 	decisions(filter: { status?: Decision["status"]; project?: string | number } = {}) {
-		const where: string[] = [];
+		const where: string[] = this.p.workspace == null ? [] : [`d.workspace_id = ${Number(this.p.workspace)}`];
 		const params: (string | number)[] = [];
 		if (filter.status) {
 			where.push("d.status = ?");
@@ -259,7 +259,7 @@ export class Growth {
 		if (decisionId) this.p.patch("decisions", decisionId, values, false);
 		else {
 			if (!input.title) throw new GaamError("INVALID", "title is required");
-			decisionId = this.p.insert("decisions", { ...values, author: this.p.actor });
+			decisionId = this.p.insert("decisions", { ...values, author: this.p.actor, workspace_id: this.p.targetWorkspace() });
 		}
 		const d = this.decisions().find((x) => x.id === decisionId)!;
 		this.p.log(id ? `decision.${d.status}` : "decision.opened", "decision", d.id, `${d.title} · ${d.mode}`);

@@ -31,6 +31,16 @@ The user writes in Persian (Farsi), often casually. Reply in Persian unless they
 2. If `recently_answered` contains answers to questions an agent asked, act on them first. Fold them into the mind map, tasks or project fields.
 3. Mention at most one or two nudges, and only when they relate to what the user wants right now.
 
+## Workspaces
+
+Data is split into workspaces: **snappfood** (work: the Jira board, SFPM, the team, git.snappfood.ir repos) and **personal** (side projects such as 2048-super-solid, desktop-cat and zoai, from GitHub repos). The user can add more.
+
+- `workspace_list` shows them with counts and which one this session is scoped to. Reads and new items follow the active workspace.
+- When the user talks about a personal or side project, call `workspace_use` with `personal` first, so nothing lands in the work workspace. Switch back to `snappfood` (or `all`) afterwards.
+- Pass `workspace` explicitly to `project_save` or `goal_save` when you know where something belongs. Tasks always follow their project's workspace.
+- Git activity, repos and reviews are per workspace: GitLab MRs belong to work, GitHub PRs to personal.
+- The in-app assistant is already scoped to whatever workspace the user has open.
+
 ## The model
 
 ```
@@ -64,7 +74,7 @@ Task statuses are `inbox`, `todo`, `doing`, `blocked`, `done` and `dropped`. Sco
 | idea | A project with a title, key and goal link. Ask which goal it serves. | The user wants to explore it. |
 | discovery | A mind map covering the user/problem, current state, questions, risks, the data needed and 2–3 options. Asks for unknowns. `problem` and `hypothesis` filled in. | The key questions are answered or consciously accepted as risks. |
 | scoping | Tasks of at most one day each, ICE-scored, with scope set. `success_metric` filled in. A summary comment. | The `in` scope is the smallest version that tests the hypothesis, and the user agrees. |
-| ready | Optional Jira issues (`jira_push`) and branch names. | Work starts. |
+| ready | Branch names, and a clear first task. | Work starts. |
 | active | Daily progress, `git_sync` and status updates. | The `in` scope is done and the metric is measured. |
 | shipped | A review comment covering what we learned and whether the metric moved. Goal `current` updated. | — |
 
@@ -166,7 +176,7 @@ If your client does not support prompts, follow the same steps yourself.
 
 ## Integrations
 
-- **Jira** (`jira_search`, `jira_push`, `jira_pull`, `jira_import`) works with Jira Cloud and Server. Ask before pushing many tasks. `jira_pull` maps the status category: To Do → `todo`, In Progress → `doing`, Done → `done`, and any status containing "block" → `blocked`.
+- **Jira is read-only.** `jira_search`, `jira_board`, `jira_pull` and `jira_import` only read. Gaam never creates, edits or comments on Jira issues, because the company can see Jira. Tasks the user creates in Gaam stay local and private. Never suggest pushing them to Jira.
 - **The user's main board** is Jira board 466 ("Discovery Board", project CND, Search domain), filtered to `assignee = Maziyar.Gholami`. It is mirrored into the Gaam project **DISC**, and those tasks keep their Jira key as their Gaam key (CND-674). Jira owns the title, column (`external_status`, e.g. "Code Review"), due date and priority. Gaam owns ICE, scope, subtasks and notes. It syncs every 30 minutes, or on demand with `jira_board` `sync: true`. Do not try to change a column from Gaam. To move a card, tell the user, or link the work so it shows up in stand-ups.
 - **Git** (`git_activity`, `git_reviews`, `git_sync`) reads local repositories from `GAAM_REPOS` or a project's `repo_path`, GitLab merge requests from `GITLAB_URL` and `GITLAB_TOKEN`, and GitHub pull requests from `GITHUB_TOKEN`.
 - A tool fails with `INTEGRATION:` when something is not configured. Tell the user which variable to set in `~/Planing/.env` and carry on without that integration.
@@ -179,6 +189,7 @@ Errors start with a code: `NOT_FOUND`, `INVALID`, `CONFLICT` or `INTEGRATION`. T
 
 | Need | Tools |
 | --- | --- |
+| Workspaces | `workspace_list`, `workspace_use`, `workspace_save` |
 | Orient yourself | `gaam_context`, `gaam_guide`, `search`, `activity`, `insights` |
 | Goals | `goal_list`, `goal_save` |
 | Projects | `project_list`, `project_get`, `project_save` |
@@ -195,9 +206,10 @@ Bulk tools (`task_create`, `task_update`, `task_score`, `scope_set`, `ask_user`,
 
 ## Built-in assistant and automations
 
-Gaam also runs agents itself, using the user's own accounts and no API keys:
+Gaam also runs agents itself. The in-app assistant can use any of these:
 
-- **Claude Code**: `claude -p` with Gaam's MCP server.
+- **Claude API**: the official Anthropic SDK with an `ANTHROPIC_API_KEY`. Tool calls run inside Gaam, and destructive ones wait for the user's approval.
+- **Claude Code**: `claude -p` with Gaam's MCP server, using the user's own subscription.
 - **Codex**: `codex exec`, with the user's ChatGPT account.
 - **Ollama**: local models such as qwen3:14b, using a reduced tool set.
 

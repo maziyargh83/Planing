@@ -176,3 +176,28 @@ test("knowledge and follow-ups: meeting docs link people and follow-ups", async 
 	assert.equal(ctx.followups.waiting_on_others.length, 1);
 	assert.ok(Array.isArray(ctx.format_rules));
 });
+
+test("workspaces keep work and personal apart, and 'all' sees both", async () => {
+	const { call } = await connect();
+	await call("project_save", { title: "Search", key: "SRCH" });
+	await call("task_create", { project: "SRCH", tasks: [{ title: "work thing" }] });
+	await call("workspace_use", { workspace: "personal" });
+	const side = await call("project_save", { title: "2048 Drop", key: "DROP" });
+	await call("task_create", { project: "DROP", tasks: [{ title: "cat skins" }] });
+	await call("task_create", { tasks: [{ title: "buy domain" }] });
+	assert.deepEqual(
+		(await call("project_list", {})).map((p: { key: string }) => p.key),
+		["DROP"],
+	);
+	assert.equal((await call("task_list", {})).length, 2);
+	await call("workspace_use", { workspace: "snappfood" });
+	assert.deepEqual(
+		(await call("task_list", {})).map((t: { title: string }) => t.title),
+		["work thing"],
+	);
+	await call("workspace_use", { workspace: "all" });
+	assert.equal((await call("task_list", {})).length, 3);
+	const { workspaces } = await call("workspace_list", {});
+	assert.equal(workspaces.find((w: { key: string }) => w.key === "personal").open_tasks, 2);
+	assert.equal(side.key, "DROP");
+});

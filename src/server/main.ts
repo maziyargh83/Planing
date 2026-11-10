@@ -4,9 +4,10 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
-import { Assistant, type LiveEvent } from "../ai/assistant.ts";
+import { Assistant } from "../ai/assistant.ts";
+import type { ChatEvent } from "../ai/protocol.ts";
 import { Scheduler } from "../ai/automations.ts";
-import { startOllama } from "../ai/providers.ts";
+import { startOllama } from "../ai/providers/index.ts";
 import { context, insights, nudges } from "../core/coach.ts";
 import { openDb } from "../core/db.ts";
 import { formatStandup, Growth } from "../core/growth.ts";
@@ -14,8 +15,9 @@ import { Knowledge } from "../core/knowledge.ts";
 import { standupContext, teamStatus } from "../integrations/standup.ts";
 import { Planner } from "../core/planner.ts";
 import { GaamError } from "../core/types.ts";
-import { branchName, gitActivity, gitSync, integrationStatus, openReviews } from "../integrations/git.ts";
-import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraPull, jiraPush, jiraSearch, savedBoard } from "../integrations/jira.ts";
+import { branchName, detectRepos, gitActivity, gitSync, integrationStatus, openReviews } from "../integrations/git.ts";
+import { overview } from "../integrations/overview.ts";
+import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraPull, jiraSearch, savedBoard } from "../integrations/jira.ts";
 import { createMcpServer } from "../mcp/server.ts";
 
 process.chdir(new URL("../..", import.meta.url).pathname);
@@ -23,9 +25,7 @@ process.chdir(new URL("../..", import.meta.url).pathname);
 const PORT = Number(process.env.GAAM_PORT ?? 4777);
 const HOST = process.env.GAAM_HOST ?? "127.0.0.1";
 const db = openDb();
-const me = new Planner(db, "me");
-const growth = new Growth(me);
-const knowledge = new Knowledge(me);
+const base = new Planner(db, "me");
 const assistant = new Assistant(db);
 const scheduler = new Scheduler(assistant).start();
 
@@ -42,12 +42,15 @@ const PLANNER_METHODS = new Set([
 	"search", "events",
 ]);
 
-const EXTRA: Record<string, (...args: never[]) => unknown> = {
+/** RPC methods beyond the Planner, bound to one request's workspace scope. */
+function extras(me: Planner): Record<string, (...args: never[]) => unknown> {
+	const growth = new Growth(me);
+	const knowledge = new Knowledge(me);
+	return {
 	context: () => context(me),
 	insights: (days?: number) => ({ ...insights(me, days ?? 7), nudges: nudges(me) }),
 	integrations: () => ({ ...integrationStatus(), mcp: `http://localhost:${PORT}/mcp`, root: process.cwd() }),
 	jiraSearch: (jql: string) => jiraSearch(jql),
-	jiraPush: (task: string) => jiraPush(me, task),
 	jiraPull: () => jiraPull(me),
 	jiraBoard: async () => {
 		const saved = savedBoard(me);
@@ -60,7 +63,7 @@ const EXTRA: Record<string, (...args: never[]) => unknown> = {
 	},
 	configureBoard: (input: Parameters<typeof configureBoard>[1]) => configureBoard(me, input),
 	gitActivity: (since?: string) => gitActivity(me, { since }),
-	gitReviews: () => openReviews(),
+	gitReviews: () => openReviews(me),
 	gitSync: () => gitSync(me),
 	branchName: (task: string) => branchName(me.resolveTask(task)),
 	aiStatus: () => assistant.status(),
@@ -69,6 +72,8 @@ const EXTRA: Record<string, (...args: never[]) => unknown> = {
 	thread: (id: number) => ({ ...assistant.store.thread(id), running: assistant.running().includes(id) }),
 	deleteThread: (id: number) => assistant.store.deleteThread(id),
 	stopThread: (id: number) => assistant.stop(id),
+	renameThread: (id: number, title: string) => assistant.store.updateThread(id, { title }),
+	pinThread: (id: number, pinned: boolean) => assistant.store.updateThread(id, { pinned: pinned ? 1 : 0 }),
 	latestBrief: () => assistant.store.latestFrom("morning-brief"),
 	automations: () => scheduler.list(),
 	saveAutomation: (input: Parameters<Scheduler["save"]>[0]) => scheduler.save(input),
@@ -96,7 +101,13 @@ const EXTRA: Record<string, (...args: never[]) => unknown> = {
 	doc: (id: number) => knowledge.doc(id),
 	saveDoc: (input: Parameters<Knowledge["save"]>[0]) => knowledge.save(input),
 	deleteDoc: (id: number) => knowledge.remove(id),
-};
+	workspaces: () => me.listWorkspaces(),
+	saveWorkspace: (input: Parameters<Planner["saveWorkspace"]>[0]) => me.saveWorkspace(input),
+	detectRepos: () => detectRepos(me),
+	overview: () => overview(me),
+	};
+}
+
 
 const app = new Hono();
 
@@ -110,12 +121,23 @@ app.use("*", async (c, next) => {
 	await next();
 });
 
+/** The planner for a request: scoped to the UI's workspace header, or all workspaces. */
+function scoped(workspace?: string | null): Planner {
+	try {
+		return base.in(workspace || null);
+	} catch {
+		return base;
+	}
+}
+
 app.post("/api/rpc", async (c) => {
 	const { method, args = [] } = await c.req.json<{ method: string; args?: unknown[] }>();
 	try {
+		const me = scoped(c.req.header("x-gaam-workspace"));
+		const extra = extras(me);
 		let result: unknown;
 		if (PLANNER_METHODS.has(method)) result = await (me as unknown as Record<string, (...a: unknown[]) => unknown>)[method]!(...args);
-		else if (EXTRA[method]) result = await (EXTRA[method] as (...a: unknown[]) => unknown)(...args);
+		else if (extra[method]) result = await (extra[method] as (...a: unknown[]) => unknown)(...args);
 		else return c.json({ error: { code: "INVALID", message: `Unknown method ${method}` } }, 400);
 		return c.json({ data: result ?? null });
 	} catch (error) {
@@ -130,45 +152,83 @@ app.post("/api/files", async (c) => {
 	if (!files.length) return c.json({ error: { code: "INVALID", message: "No file" } }, 400);
 	const kind = typeof form.kind === "string" && form.kind ? (form.kind as import("../core/knowledge.ts").DocKind) : undefined;
 	const docs = [];
+	const knowledge = new Knowledge(scoped(c.req.header("x-gaam-workspace")));
 	for (const file of files) docs.push(await knowledge.ingestUpload(file.name, new Uint8Array(await file.arrayBuffer()), { kind }));
 	return c.json({ data: docs });
 });
 
+const chatError = (error: unknown) => ({ error: { code: (error as GaamError).code ?? "INTERNAL", message: (error as Error).message } });
+
 app.post("/api/assistant", async (c) => {
-	const body = await c.req.json<{ thread?: number; text: string; provider?: string; model?: string | null }>();
+	const body = await c.req.json<Parameters<Assistant["send"]>[0]>();
 	if (!body.text?.trim()) return c.json({ error: { code: "INVALID", message: "Empty message" } }, 400);
 	try {
-		const { thread } = await assistant.send({ ...body, text: body.text.trim() });
-		return c.json({ data: { thread } });
+		const { thread, messageId } = await assistant.send({ ...body, text: body.text.trim(), workspace: c.req.header("x-gaam-workspace") || null });
+		return c.json({ data: { thread, messageId } });
 	} catch (error) {
-		return c.json({ error: { code: (error as GaamError).code ?? "INTERNAL", message: (error as Error).message } }, 400);
+		return c.json(chatError(error), 400);
 	}
 });
 
-/** Streams one assistant turn: a snapshot first, then text and tool events until done. */
+app.post("/api/assistant/:id/regenerate", async (c) => {
+	const body = await c.req.json<Parameters<Assistant["regenerate"]>[1]>().catch(() => ({}));
+	try {
+		const { thread, messageId } = await assistant.regenerate(Number(c.req.param("id")), body);
+		return c.json({ data: { thread, messageId } });
+	} catch (error) {
+		return c.json(chatError(error), 400);
+	}
+});
+
+app.post("/api/assistant/:id/fork", async (c) => {
+	const { messageId } = await c.req.json<{ messageId: number }>();
+	try {
+		return c.json({ data: { thread: assistant.fork(Number(c.req.param("id")), messageId).id } });
+	} catch (error) {
+		return c.json(chatError(error), 400);
+	}
+});
+
+app.post("/api/assistant/:id/approve", async (c) => {
+	const { toolCallId, ok } = await c.req.json<{ toolCallId: string; ok: boolean }>();
+	try {
+		return c.json({ data: assistant.approve(Number(c.req.param("id")), toolCallId, ok) });
+	} catch (error) {
+		return c.json(chatError(error), 404);
+	}
+});
+
+app.post("/api/assistant/:id/stop", (c) => c.json({ data: assistant.stop(Number(c.req.param("id"))) }));
+
+/**
+ * Streams the live turn of a thread as protocol events. `after` resumes from a
+ * sequence number, so a reconnecting client misses nothing.
+ */
 app.get("/api/assistant/:id/stream", (c) =>
 	streamSSE(c, async (stream) => {
 		const id = Number(c.req.param("id"));
-		const queue: LiveEvent[] = [];
+		const after = Number(c.req.query("after") ?? 0);
+		const queue: { seq: number; event: ChatEvent }[] = [];
 		let wake: (() => void) | null = null;
-		const { snapshot, unsubscribe } = assistant.subscribe(id, (event) => {
-			queue.push(event);
+		const sub = assistant.subscribe(id, after, (seq, event) => {
+			queue.push({ seq, event });
 			wake?.();
 		});
 		stream.onAbort(() => {
-			unsubscribe();
+			sub.unsubscribe();
 		});
-		await stream.writeSSE({ event: "snapshot", data: JSON.stringify(snapshot) });
-		if (!snapshot.running) {
-			unsubscribe();
+		await stream.writeSSE({ event: "state", data: JSON.stringify({ running: sub.running, messageId: sub.messageId }) });
+		queue.unshift(...sub.backlog);
+		if (!sub.running && !queue.length) {
+			sub.unsubscribe();
 			return;
 		}
 		for (;;) {
 			while (queue.length) {
-				const event = queue.shift()!;
-				await stream.writeSSE({ event: event.type, data: JSON.stringify(event) });
-				if (event.type === "done") {
-					unsubscribe();
+				const item = queue.shift()!;
+				await stream.writeSSE({ event: "chat", id: String(item.seq), data: JSON.stringify(item) });
+				if (item.event.type === "finish") {
+					sub.unsubscribe();
 					return;
 				}
 			}
@@ -185,13 +245,13 @@ app.get("/api/assistant/:id/stream", (c) =>
 /** Live activity feed. Any process writing to the database (the stdio MCP server included) shows up here. */
 app.get("/api/stream", (c) =>
 	streamSSE(c, async (stream) => {
-		let last = Number(c.req.query("since") ?? me.lastEventId());
+		let last = Number(c.req.query("since") ?? base.lastEventId());
 		let alive = true;
 		stream.onAbort(() => {
 			alive = false;
 		});
 		while (alive) {
-			const events = me.events(last, 100);
+			const events = base.events(last, 100);
 			for (const event of events) {
 				await stream.writeSSE({ data: JSON.stringify(event), event: "change", id: String(event.id) });
 				last = event.id;
@@ -203,7 +263,7 @@ app.get("/api/stream", (c) =>
 );
 
 app.all("/mcp", async (c) => {
-	const server = createMcpServer(db, c.req.query("as") ?? c.req.header("x-gaam-actor") ?? "http-agent");
+	const server = createMcpServer(db, c.req.query("as") ?? c.req.header("x-gaam-actor") ?? "http-agent", undefined, c.req.query("ws") ?? null);
 	const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
 	await server.connect(transport);
 	const response = await transport.handleRequest(c.req.raw);

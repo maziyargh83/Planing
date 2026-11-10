@@ -38,8 +38,8 @@ export function insights(p: Planner, days = 7) {
 	}
 	const bucket = (iso: string) => perDay.get(localDay(new Date(iso)));
 
-	for (const r of q<{ done_at: string }>(p, "select done_at from tasks where done_at >= ?", fromIso)) bucket(r.done_at)!.done++;
-	for (const r of q<{ created_at: string }>(p, "select created_at from tasks where created_at >= ?", fromIso))
+	for (const r of q<{ done_at: string }>(p, `select done_at from tasks where done_at >= ?${p.ws()}`, fromIso)) bucket(r.done_at)!.done++;
+	for (const r of q<{ created_at: string }>(p, `select created_at from tasks where created_at >= ?${p.ws()}`, fromIso))
 		bucket(r.created_at)!.created++;
 	for (const r of q<{ started_at: string; minutes: number }>(
 		p,
@@ -61,20 +61,20 @@ export function insights(p: Planner, days = 7) {
 
 	const estimation = q<{ est: number | null; act: number | null; n: number }>(
 		p,
-		"select sum(estimate_h) as est, sum(actual_h) as act, count(*) as n from tasks where status = 'done' and estimate_h > 0 and actual_h > 0 and done_at >= ?",
+		"select sum(estimate_h) as est, sum(actual_h) as act, count(*) as n from tasks where status = 'done' and estimate_h > 0 and actual_h > 0 and done_at >= ?" + p.ws(),
 		fromIso,
 	)[0]!;
 	const alignment = q<{ aligned: number; total: number }>(
 		p,
 		`select count(*) filter (where g.status = 'active') as aligned, count(*) as total
 		from tasks t left join projects pr on pr.id = t.project_id left join goals g on g.id = pr.goal_id
-		where t.done_at >= ?`,
+		where t.done_at >= ?${p.ws("t")}`,
 		fromIso,
 	)[0]!;
 	const byProject = q<{ key: string | null; title: string | null; done: number }>(
 		p,
 		`select pr.key, pr.title, count(*) as done from tasks t left join projects pr on pr.id = t.project_id
-		where t.done_at >= ? group by t.project_id order by done desc limit 6`,
+		where t.done_at >= ?${p.ws("t")} group by t.project_id order by done desc limit 6`,
 		fromIso,
 	);
 
@@ -130,7 +130,7 @@ export function nudges(p: Planner): Nudge[] {
 	const out: Nudge[] = [];
 	const today = localDay();
 
-	const doing = q<{ key: string; updated_at: string }>(p, "select key, updated_at from tasks where status = 'doing'");
+	const doing = q<{ key: string; updated_at: string }>(p, `select key, updated_at from tasks where status = 'doing'${p.ws()}`);
 	if (doing.length > WIP_LIMIT)
 		out.push({
 			level: "warn",
@@ -149,13 +149,13 @@ export function nudges(p: Planner): Nudge[] {
 
 	const overdue = q<{ key: string }>(
 		p,
-		"select key from tasks where due < ? and status not in ('done','dropped') order by due",
+		`select key from tasks where due < ? and status not in ('done','dropped')${p.ws()} order by due`,
 		today,
 	);
 	if (overdue.length)
 		out.push({ level: "warn", code: "overdue", message: `${overdue.length} کار از ددلاین گذشته.`, refs: overdue.map((o) => o.key) });
 
-	const blocked = q<{ key: string }>(p, "select key from tasks where status = 'blocked'");
+	const blocked = q<{ key: string }>(p, `select key from tasks where status = 'blocked'${p.ws()}`);
 	if (blocked.length)
 		out.push({ level: "info", code: "blocked", message: `${blocked.length} کار گیر کرده — چه کسی می‌تواند بازش کند؟`, refs: blocked.map((b) => b.key) });
 
@@ -163,14 +163,14 @@ export function nudges(p: Planner): Nudge[] {
 	if (!plan || plan.top === "[]")
 		out.push({ level: "info", code: "no_plan", message: "هنوز برنامه‌ی امروز را نچیدی. حداکثر سه کار انتخاب کن که یک هدف را جلو ببرد." });
 
-	const inbox = q<{ n: number }>(p, "select count(*) as n from tasks where status = 'inbox'")[0]!.n;
+	const inbox = q<{ n: number }>(p, `select count(*) as n from tasks where status = 'inbox'${p.ws()}`)[0]!.n;
 	if (inbox >= 7) out.push({ level: "info", code: "inbox", message: `${inbox} مورد در صندوق منتظرند. به پروژه ببرشان یا دورشان بینداز.` });
 
 	const unscored = q<{ key: string }>(
 		p,
 		`select t.key from tasks t join projects pr on pr.id = t.project_id
 		where pr.stage in ('scoping','ready','active') and t.parent_id is null and t.status not in ('done','dropped')
-		and (t.impact is null or t.confidence is null or t.ease is null)`,
+		and (t.impact is null or t.confidence is null or t.ease is null)${p.ws("t")}`,
 	);
 	if (unscored.length >= 3)
 		out.push({
@@ -184,7 +184,7 @@ export function nudges(p: Planner): Nudge[] {
 	if (oldAsks.length)
 		out.push({ level: "info", code: "asks", message: `${oldAsks.length} سؤال از ایجنت‌ها بیش از دو روز بی‌جواب مانده.` });
 
-	const orphanActive = q<{ key: string }>(p, "select key from projects where stage = 'active' and goal_id is null");
+	const orphanActive = q<{ key: string }>(p, `select key from projects where stage = 'active' and goal_id is null${p.ws()}`);
 	if (orphanActive.length)
 		out.push({
 			level: "info",
@@ -200,7 +200,7 @@ export function nudges(p: Planner): Nudge[] {
 	const stuck = q<{ key: string; external_status: string }>(
 		p,
 		`select key, external_status from tasks where status = 'doing' and external_since < ?
-		and (external_status like '%review%' or external_status like '%QA%' or external_status like '%QC%')`,
+		and (external_status like '%review%' or external_status like '%QA%' or external_status like '%QC%')${p.ws()}`,
 		new Date(Date.now() - 2 * 864e5).toISOString(),
 	);
 	if (stuck.length)
@@ -213,7 +213,7 @@ export function nudges(p: Planner): Nudge[] {
 
 	const meetings = q<{ id: number; title: string; day: string }>(
 		p,
-		"select id, title, day from docs where kind = 'meeting' and day between ? and ? and (summary is null or summary = '') order by day",
+		`select id, title, day from docs where kind = 'meeting' and day between ? and ? and (summary is null or summary = '')${p.ws()} order by day`,
 		today,
 		localDay(new Date(Date.now() + 864e5)),
 	);
@@ -255,7 +255,7 @@ export function nudges(p: Planner): Nudge[] {
 		});
 	const silentGoals = q<{ title: string }>(
 		p,
-		`select g.title from goals g where g.source = 'SFPM' and g.status = 'active'
+		`select g.title from goals g where g.source = 'SFPM' and g.status = 'active'${p.ws("g")}
 		and not exists (select 1 from journal j where j.goal_id = g.id and j.day >= ?)`,
 		daysAgo(14),
 	);
@@ -267,7 +267,7 @@ export function nudges(p: Planner): Nudge[] {
 			refs: silentGoals.map((g) => g.title.split(" · ")[0]!),
 		});
 
-	const wins = q<{ n: number }>(p, "select count(*) as n from tasks where done_at >= ?", new Date(`${today}T00:00:00`).toISOString())[0]!.n;
+	const wins = q<{ n: number }>(p, `select count(*) as n from tasks where done_at >= ?${p.ws()}`, new Date(`${today}T00:00:00`).toISOString())[0]!.n;
 	if (wins >= 3) out.push({ level: "win", code: "momentum", message: `امروز ${wins} کار تمام کردی. شتاب خوبی داری.` });
 
 	return out;
@@ -295,6 +295,8 @@ export function context(p: Planner) {
 		open_asks: p.listAsks({ status: "open" }),
 		recently_answered: p.listAsks({ status: "answered", since: new Date(Date.now() - 3 * 864e5).toISOString() }),
 		nudges: nudges(p),
+		workspace: p.workspace == null ? "all" : p.resolveWorkspace(p.workspace).key,
+		workspaces: p.listWorkspaces().map((w) => ({ key: w.key, name: w.name, kind: w.kind, open_tasks: w.open_tasks, doing: w.doing, done_week: w.done_week })),
 		growth: new Growth(p).cycle(),
 		week: insights(p, 7),
 	};

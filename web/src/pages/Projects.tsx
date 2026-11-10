@@ -1,3 +1,4 @@
+import { Btn, Choice, Panel, Tag, TextInput } from "~/components/app.tsx";
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import * as Tabs from "~/components/ui/tabs";
 
@@ -35,8 +36,8 @@ export function Projects() {
 					<p>از ایده تا تحویل: دیسکاوری، اسکوپ، اولویت، اجرا.</p>
 				</div>
 				<form class="row" onSubmit={create}>
-					<input class="input" style={{ width: "280px" }} placeholder="یک ایده جدید…" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
-					<button class="btn primary">+ ایده</button>
+					<TextInput style={{ width: "280px" }} placeholder="یک ایده جدید…" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
+					<Btn kind="primary">+ ایده</Btn>
 				</form>
 			</div>
 			<For each={byStage().filter((s) => s.items.length)} fallback={<div class="empty">هنوز پروژه‌ای نیست. یک ایده بنویس، یا به ایجنتت بگو: «این ایده را پلن کن».</div>}>
@@ -48,11 +49,11 @@ export function Projects() {
 						<div class="grid g3">
 							<For each={group.items}>
 								{(p: { key: string; title: string; stage: string; tasks: number; done: number; doing: number; open_asks: number; nodes: number; goal_title: string | null; problem: string | null; color: string | null }) => (
-									<div class="card pcard" style={{ "--pc": p.color ?? STAGE_COLOR[p.stage] }} onClick={() => go(`/p/${p.key}`)}>
+									<Panel class="pcard" style={{ "--pc": p.color ?? STAGE_COLOR[p.stage] }} onClick={() => go(`/p/${p.key}`)}>
 										<div class="row">
-											<span class="chip key">{p.key}</span>
+											<Tag class="key">{p.key}</Tag>
 											<Show when={p.goal_title}>
-												<span class="chip accent">🎯 {p.goal_title}</span>
+												<Tag class="accent">🎯 {p.goal_title}</Tag>
 											</Show>
 										</div>
 										<h2>{p.title}</h2>
@@ -71,12 +72,12 @@ export function Projects() {
 											<Show when={p.doing}>· {fa(p.doing)} در جریان</Show>
 											<Show when={p.nodes}>· 🧠 {fa(p.nodes)}</Show>
 											<Show when={p.open_asks}>
-												<span class="chip" style={{ color: "var(--violet)" }}>
+												<Tag style={{ color: "var(--violet)" }}>
 													❓ {fa(p.open_asks)}
-												</span>
+												</Tag>
 											</Show>
 										</div>
-									</div>
+									</Panel>
 								)}
 							</For>
 						</div>
@@ -127,18 +128,12 @@ export function ProjectPage(props: { projectKey: string }) {
 							</div>
 							<span class="spacer" />
 							<Show when={goals()}>
-							<select class="input" style={{ width: "auto" }} onChange={(e) => save({ goal: e.currentTarget.value ? Number(e.currentTarget.value) : null })}>
-								<option value="" selected={!p().goal_id}>
-									🎯 بدون هدف
-								</option>
-								<For each={goals()}>
-									{(g) => (
-										<option value={g.id} selected={g.id === p().goal_id}>
-											🎯 {g.title}
-										</option>
-									)}
-								</For>
-							</select>
+							<Choice
+								value={p().goal_id == null ? "" : String(p().goal_id)}
+								options={[{ value: "", label: "🎯 بدون هدف" }, ...(goals() ?? []).map((g) => ({ value: String(g.id), label: `🎯 ${g.title}` }))]}
+								onChange={(v) => save({ goal: v ? Number(v) : null })}
+								width="min(420px, 100%)"
+							/>
 							</Show>
 						</div>
 
@@ -151,7 +146,7 @@ export function ProjectPage(props: { projectKey: string }) {
 								] as const}
 							>
 								{([field, label, hint]) => (
-									<div class="card" style={{ padding: "12px 14px" }}>
+									<Panel style={{ padding: "12px 14px" }}>
 										<div class="field-label">{label}</div>
 										<textarea
 											class="inline-edit"
@@ -161,7 +156,7 @@ export function ProjectPage(props: { projectKey: string }) {
 											value={(p() as unknown as Record<string, string | null>)[field] ?? ""}
 											onChange={(e) => save({ [field]: e.currentTarget.value })}
 										/>
-									</div>
+									</Panel>
 								)}
 							</For>
 						</div>
@@ -202,7 +197,7 @@ export function ProjectPage(props: { projectKey: string }) {
 								<ScopeView tasks={b().tasks} />
 							</Match>
 							<Match when={tab() === "tasks"}>
-								<div class="card">
+								<Panel>
 									<div class="row small faint" style={{ "margin-bottom": "6px" }}>
 										به ترتیب: اولویت، سپس امتیاز ICE
 									</div>
@@ -210,7 +205,7 @@ export function ProjectPage(props: { projectKey: string }) {
 										{(t: Task) => <TaskRow task={t} />}
 									</For>
 									<QuickAdd project={p().key} />
-								</div>
+								</Panel>
 							</Match>
 							<Match when={tab() === "board"}>
 								<Board tasks={flat().filter((t) => !t.parent_id)} />
@@ -223,25 +218,25 @@ export function ProjectPage(props: { projectKey: string }) {
 								</div>
 							</Match>
 							<Match when={tab() === "talk"}>
-								<div class="card" style={{ "max-width": "760px" }}>
+								<Panel style={{ "max-width": "760px" }}>
 									<Thread entity="project" refId={p().key} />
-								</div>
+								</Panel>
 							</Match>
 							<Match when={tab() === "activity"}>
-								<div class="card">
+								<Panel>
 									<For each={b().activity}>
 										{(e: { id: number; actor: string; action: string; summary: string; at: string }) => (
 											<div class="row small" style={{ padding: "4px 0", "border-bottom": "1px solid var(--line)" }}>
 												<span>{e.actor === "me" ? "🙂" : "🤖"}</span>
 												<b>{e.actor === "me" ? "من" : e.actor}</b>
-												<span class="chip">{e.action}</span>
+												<Tag>{e.action}</Tag>
 												<span class="muted">{e.summary}</span>
 												<span class="spacer" />
 												<span class="faint">{new Date(e.at).toLocaleString("fa-IR")}</span>
 											</div>
 										)}
 									</For>
-								</div>
+								</Panel>
 							</Match>
 						</Switch>
 					</>
@@ -294,7 +289,7 @@ function ScopeView(props: { tasks: Task[] }) {
 									<div class="tcard" draggable="true" onDragStart={(e) => e.dataTransfer!.setData("text/plain", t.key)} onClick={() => openTask(t.key)}>
 										<div>{t.title}</div>
 										<div class="row small" style={{ "margin-top": "6px" }}>
-											<span class="chip key">{t.key}</span>
+											<Tag class="key">{t.key}</Tag>
 											<span class="spacer" />
 											<Ice value={t.ice} />
 										</div>
@@ -309,7 +304,7 @@ function ScopeView(props: { tasks: Task[] }) {
 	);
 }
 
-function Board(props: { tasks: Task[] }) {
+export function Board(props: { tasks: Task[] }) {
 	const cols = ["todo", "doing", "blocked", "done"] as const;
 	const [over, setOver] = createSignal<string | null>(null);
 	return (
@@ -338,9 +333,9 @@ function Board(props: { tasks: Task[] }) {
 								<div class="tcard" draggable="true" onDragStart={(e) => e.dataTransfer!.setData("text/plain", t.key)} onClick={() => openTask(t.key)}>
 									<div>{t.title}</div>
 									<div class="row small" style={{ "margin-top": "6px" }}>
-										<span class="chip key">{t.key}</span>
+										<Tag class="key">{t.key}</Tag>
 										<Show when={t.scope}>
-											<span class="chip">{SCOPE_FA[t.scope!]}</span>
+											<Tag>{SCOPE_FA[t.scope!]}</Tag>
 										</Show>
 										<span class="spacer" />
 										<Ice value={t.ice} />

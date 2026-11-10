@@ -77,7 +77,7 @@ export class Knowledge {
 	}
 
 	docs(filter: { kind?: DocKind; project?: string | number; person?: string | number; limit?: number } = {}) {
-		const where = ["1 = 1"];
+		const where = [`1 = 1${this.p.ws("d")}`];
 		const params: (string | number)[] = [];
 		if (filter.kind) {
 			where.push("d.kind = ?");
@@ -126,7 +126,12 @@ export class Knowledge {
 		if (docId) this.p.patch("docs", docId, values);
 		else {
 			if (!input.title) throw new GaamError("INVALID", "title is required");
-			docId = this.p.insert("docs", { ...values, day: input.day ?? (input.kind === "meeting" ? localDay() : null), author: this.p.actor });
+			docId = this.p.insert("docs", {
+				...values,
+				day: input.day ?? (input.kind === "meeting" ? localDay() : null),
+				author: this.p.actor,
+				workspace_id: this.p.targetWorkspace(),
+			});
 		}
 		if (people) {
 			const growth = new Growth(this.p);

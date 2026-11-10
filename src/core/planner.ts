@@ -27,8 +27,21 @@ import {
 type Row = Record<string, unknown>;
 type Param = string | number | null;
 
+export interface Workspace {
+	id: number;
+	key: string;
+	name: string;
+	icon: string | null;
+	color: string | null;
+	kind: "work" | "personal" | "other";
+	repos: string[];
+	github_user: string | null;
+	sort: number;
+}
+
 export interface GoalInput {
 	title: string;
+	workspace?: string | number | null;
 	why?: string | null;
 	horizon?: GoalHorizon;
 	status?: GoalStatus;
@@ -46,6 +59,7 @@ export interface GoalInput {
 
 export interface ProjectInput {
 	title: string;
+	workspace?: string | number | null;
 	key?: string;
 	goal?: number | null;
 	stage?: ProjectStage;
@@ -229,14 +243,82 @@ export function treeToOutline(nodes: MindNode[], depth = 0): string {
 export class Planner {
 	readonly db: Db;
 	readonly actor: string;
+	/** Active workspace id; null means "all workspaces". */
+	readonly workspace: number | null;
 
-	constructor(db: Db, actor = "me") {
+	constructor(db: Db, actor = "me", workspace: number | null = null) {
 		this.db = db;
 		this.actor = actor;
+		this.workspace = workspace;
 	}
 
 	as(actor: string): Planner {
-		return new Planner(this.db, actor);
+		return new Planner(this.db, actor, this.workspace);
+	}
+
+	/** The same planner scoped to one workspace (key or id), or to all with null / "all". */
+	in(ref: string | number | null | undefined): Planner {
+		const id = ref == null || ref === "all" || ref === "" ? null : this.resolveWorkspace(ref).id;
+		return new Planner(this.db, this.actor, id);
+	}
+
+	/** SQL fragment " and <alias>.workspace_id = N" for the active workspace, or "" for all. */
+	ws(alias?: string): string {
+		return this.workspace == null ? "" : ` and ${alias ? `${alias}.` : ""}workspace_id = ${Number(this.workspace)}`;
+	}
+
+	/** Where new records go: an explicit workspace, else the active one, else the default. */
+	targetWorkspace(explicit?: string | number | null): number {
+		if (explicit != null && explicit !== "") return this.resolveWorkspace(explicit).id;
+		if (this.workspace != null) return this.workspace;
+		const def = this.one<{ value: string }>("select value from settings where key = 'workspace.default'")?.value;
+		return def ? this.resolveWorkspace(def).id : 1;
+	}
+
+	// ── Workspaces ───────────────────────────────────────────────────────────
+
+	resolveWorkspace(ref: string | number): Workspace {
+		const row =
+			typeof ref === "number" || /^\d+$/.test(ref)
+				? this.one<Row>("select * from workspaces where id = ?", Number(ref))
+				: this.one<Row>("select * from workspaces where key = ? collate nocase or name = ?", ref, ref);
+		if (!row) throw new GaamError("NOT_FOUND", `Workspace "${ref}" does not exist. Call workspace_list.`);
+		return { ...plain<Workspace>(row), repos: JSON.parse(row.repos as string) };
+	}
+
+	listWorkspaces() {
+		const since = new Date(Date.now() - 7 * 864e5).toISOString();
+		return this.all<Row>(
+			`select w.*,
+				(select count(*) from projects p where p.workspace_id = w.id and p.stage not in ('archived','shipped')) as projects,
+				(select count(*) from tasks t where t.workspace_id = w.id and t.status in ('todo','doing','blocked','inbox') and t.parent_id is null) as open_tasks,
+				(select count(*) from tasks t where t.workspace_id = w.id and t.status = 'doing') as doing,
+				(select count(*) from tasks t where t.workspace_id = w.id and t.done_at >= ?) as done_week,
+				(select coalesce(sum(f.minutes), 0) from focus_sessions f join tasks t on t.id = f.task_id where t.workspace_id = w.id and f.started_at >= ?) as focus_week,
+				(select count(*) from tasks t where t.workspace_id = w.id and t.due < date('now','localtime') and t.status not in ('done','dropped')) as overdue
+			from workspaces w order by w.sort, w.id`,
+			since,
+			since,
+		).map((r) => ({
+			...plain<Workspace & { projects: number; open_tasks: number; doing: number; done_week: number; focus_week: number; overdue: number }>(r),
+			repos: JSON.parse(r.repos as string) as string[],
+		}));
+	}
+
+	saveWorkspace(input: { id?: number; key?: string; name?: string; icon?: string | null; color?: string | null; kind?: Workspace["kind"]; repos?: string[]; github_user?: string | null }) {
+		const { id, repos, ...rest } = input;
+		const values: Row = { ...rest };
+		if (repos) values.repos = JSON.stringify([...new Set(repos)]);
+		if (id) {
+			this.patch("workspaces", id, values, false);
+			this.log("workspace.updated", "workspace", id, input.name ?? "");
+			return this.resolveWorkspace(id);
+		}
+		if (!input.name) throw new GaamError("INVALID", "name is required");
+		const key = (input.key ?? input.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `ws${Date.now() % 10000}`;
+		const newId = this.insert("workspaces", { ...values, key, sort: this.one<{ n: number }>("select count(*) as n from workspaces")!.n });
+		this.log("workspace.created", "workspace", newId, input.name);
+		return this.resolveWorkspace(newId);
 	}
 
 	all<T = Row>(sql: string, ...params: Param[]): T[] {
@@ -296,7 +378,7 @@ export class Planner {
 				(select count(*) from projects p where p.goal_id = g.id) as projects,
 				(select count(*) from journal j where j.goal_id = g.id) as evidence,
 				case when g.target > 0 then round(100.0 * coalesce(g.current, 0) / g.target) end as progress
-			from goals g ${status ? "where g.status = ?" : ""}
+			from goals g where 1 = 1 ${status ? "and g.status = ?" : ""}${this.ws("g")}
 			order by case g.status when 'active' then 0 when 'paused' then 1 else 2 end, g.id`,
 			...(status ? [status] : []),
 		).map((g) => plain(g));
@@ -309,7 +391,8 @@ export class Planner {
 	}
 
 	createGoal(input: GoalInput): Goal {
-		const id = this.insert("goals", { ...input });
+		const { workspace, ...rest } = input;
+		const id = this.insert("goals", { ...rest, workspace_id: this.targetWorkspace(workspace) });
 		this.log("goal.created", "goal", id, input.title);
 		return this.goal(id);
 	}
@@ -354,7 +437,7 @@ export class Planner {
 	}
 
 	listProjects(stage?: ProjectStage[]) {
-		const where = stage?.length ? `where p.stage in (${stage.map(() => "?").join(",")})` : "where p.stage != 'archived'";
+		const where = (stage?.length ? `where p.stage in (${stage.map(() => "?").join(",")})` : "where p.stage != 'archived'") + this.ws("p");
 		return this.all(
 			`select p.*, g.title as goal_title,
 				count(t.id) filter (where t.parent_id is null and t.status != 'dropped') as tasks,
@@ -379,8 +462,8 @@ export class Planner {
 			if (!key) key = `P${this.nextSeq("project")}`;
 			let unique = key;
 			for (let i = 2; this.one("select 1 from projects where key = ?", unique); i++) unique = `${key}${i}`;
-			const { goal, ...rest } = input;
-			const id = this.insert("projects", { ...rest, key: unique, goal_id: goal ?? null });
+			const { goal, workspace, ...rest } = input;
+			const id = this.insert("projects", { ...rest, key: unique, goal_id: goal ?? null, workspace_id: this.targetWorkspace(workspace) });
 			this.log("project.created", "project", id, `${unique} · ${input.title}`);
 			return this.resolveProject(id);
 		});
@@ -388,8 +471,10 @@ export class Planner {
 
 	updateProject(ref: string | number, patch: Partial<Omit<ProjectInput, "key">>): Project {
 		const project = this.resolveProject(ref);
-		const { goal, ...rest } = patch;
-		this.patch("projects", project.id, { ...rest, goal_id: goal });
+		const { goal, workspace, ...rest } = patch;
+		const workspaceId = workspace == null ? undefined : this.resolveWorkspace(workspace).id;
+		this.patch("projects", project.id, { ...rest, goal_id: goal, workspace_id: workspaceId });
+		if (workspaceId) this.run("update tasks set workspace_id = ? where project_id = ?", workspaceId, project.id);
 		const summary =
 			patch.stage && patch.stage !== project.stage ? `${project.key}: ${project.stage} → ${patch.stage}` : project.key;
 		this.log(patch.stage ? "project.stage" : "project.updated", "project", project.id, summary);
@@ -445,6 +530,7 @@ export class Planner {
 				params.push(this.resolveProject(filter.project).id);
 			}
 		}
+		if (this.workspace != null) where.push(`t.workspace_id = ${Number(this.workspace)}`);
 		if (filter.status?.length) {
 			where.push(`t.status in (${filter.status.map(() => "?").join(",")})`);
 			params.push(...filter.status);
@@ -489,6 +575,10 @@ export class Planner {
 					status: rest.status ?? (project ? "todo" : "inbox"),
 					key,
 					project_id: project?.id ?? parent?.project_id ?? null,
+					workspace_id:
+						(project as (Project & { workspace_id?: number }) | null)?.workspace_id ??
+						(parent as (Task & { workspace_id?: number }) | null)?.workspace_id ??
+						this.targetWorkspace(),
 					parent_id: parentId,
 					tags: JSON.stringify(tags ?? []),
 					sort: Date.now() / 1000 + created.length,
@@ -512,7 +602,11 @@ export class Planner {
 			const { project, parent, tags, ...rest } = patch;
 			const values: Row = { ...rest };
 			if (tags) values.tags = JSON.stringify(tags);
-			if (project !== undefined) values.project_id = project == null ? null : this.resolveProject(project).id;
+			if (project !== undefined) {
+				const target = project == null ? null : (this.resolveProject(project) as Project & { workspace_id: number });
+				values.project_id = target?.id ?? null;
+				if (target) values.workspace_id = target.workspace_id;
+			}
 			if (parent !== undefined) values.parent_id = parent == null ? null : this.resolveTask(parent).id;
 			if (patch.status && patch.status !== task.status) values.done_at = patch.status === "done" ? NOW() : null;
 			this.patch("tasks", task.id, values);

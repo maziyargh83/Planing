@@ -23,7 +23,7 @@ import {
 	TASK_STATUSES,
 } from "../core/types.ts";
 import { branchName, gitActivity, gitSync, openReviews } from "../integrations/git.ts";
-import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraImport, jiraPull, jiraPush, jiraSearch, savedBoard } from "../integrations/jira.ts";
+import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraImport, jiraPull, jiraSearch, savedBoard } from "../integrations/jira.ts";
 import { PROMPTS } from "./prompts.ts";
 
 const GUIDE = readFileSync(new URL("../../docs/AGENT_GUIDE.md", import.meta.url), "utf8");
@@ -83,9 +83,17 @@ const nodeInput: z.ZodType<MindInput> = z.lazy(() =>
 ) as z.ZodType<MindInput>;
 
 /** `actor` names the agent in the activity log when the transport cannot (stateless HTTP). */
-export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
+export function createMcpServer(db: Db, actor?: string, version = "0.1.0", workspace: string | null = process.env.GAAM_WORKSPACE ?? null) {
 	const server = new McpServer({ name: "gaam", title: "Gaam · گام", version }, { instructions: INSTRUCTIONS });
-	const planner = () => new Planner(db, actor ?? server.server.getClientVersion()?.name ?? "agent");
+	let scope = workspace;
+	const planner = () => {
+		const p = new Planner(db, actor ?? server.server.getClientVersion()?.name ?? "agent");
+		try {
+			return p.in(scope);
+		} catch {
+			return p;
+		}
+	};
 
 	function tool<S extends z.ZodRawShape>(
 		name: string,
@@ -129,6 +137,40 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
 		{},
 		() => GUIDE,
 		true,
+	);
+
+	tool(
+		"workspace_list",
+		"The user's workspaces (e.g. snappfood = work, personal = side projects) with open/doing/done-this-week counts, and which one this session is scoped to. Reads and new items follow the active workspace.",
+		{},
+		(_, p) => ({ active: p.workspace == null ? "all" : p.resolveWorkspace(p.workspace).key, workspaces: p.listWorkspaces() }),
+		true,
+	);
+
+	tool(
+		"workspace_use",
+		"Scope this session to one workspace (key, e.g. 'personal') or 'all'. Do this before planning personal projects so they don't land in the work workspace.",
+		{ workspace: z.string() },
+		({ workspace: ws }, p) => {
+			const next = ws === "all" ? null : p.resolveWorkspace(ws).key;
+			scope = next;
+			return { active: next ?? "all" };
+		},
+	);
+
+	tool(
+		"workspace_save",
+		"Create a workspace (name, kind work|personal|other, icon) or update one (id): rename, set its git repos (absolute paths) or GitHub user.",
+		{
+			id: z.number().int().optional(),
+			name: z.string().optional(),
+			key: z.string().optional(),
+			kind: z.enum(["work", "personal", "other"]).optional(),
+			icon: z.string().nullish(),
+			repos: z.array(z.string()).optional(),
+			github_user: z.string().nullish(),
+		},
+		(input, p) => p.saveWorkspace(input),
 	);
 
 	tool(
@@ -180,6 +222,7 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
 			target: z.number().nullish(),
 			current: z.number().nullish(),
 			due: day.nullish(),
+			workspace: z.string().nullish().describe("Workspace key; defaults to the active one"),
 			source: z.string().nullish().describe('Where the goal comes from, e.g. "SFPM" for company performance-review goals'),
 			cycle: z.string().nullish().describe('Review cycle, e.g. "1405-C2"'),
 			kind: z.enum(["expectation", "development"]).nullish().describe("For SFPM goals: expectation (role deliverable) or development (personal growth item)"),
@@ -214,6 +257,7 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
 		"Create a project (omit project) or update one. Projects start as stage 'idea'. Give a short uppercase key (2–5 latin letters) — it prefixes every task key. Fill problem, hypothesis and success_metric during discovery.",
 		{
 			project: ref.optional().describe("Key or id to update; omit to create"),
+			workspace: z.string().nullish().describe("Workspace key (snappfood, personal…). Defaults to the active one; on update, moves the project and its tasks"),
 			title: z.string().optional(),
 			key: z.string().regex(/^[A-Za-z][A-Za-z0-9]{1,9}$/).optional().describe("Only on create"),
 			goal: z.number().int().nullish().describe("Goal id this project serves"),
@@ -223,7 +267,7 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
 			success_metric: z.string().nullish(),
 			description: z.string().nullish(),
 			color: z.string().nullish(),
-			jira_project: z.string().nullish().describe("Jira project key for jira_push"),
+			jira_project: z.string().nullish().describe("Jira project key this project relates to (reference only; Gaam never writes to Jira)"),
 			repo_path: z.string().nullish().describe("Absolute path of the git repository for git_activity/git_sync"),
 		},
 		({ project, key, ...input }, p) => {
@@ -621,16 +665,9 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
 
 	// ── Integrations ────────────────────────────────────────────────────────
 
-	tool("jira_search", "Search Jira with JQL, e.g. 'assignee = currentUser() AND statusCategory != Done'.", { jql: z.string(), limit: z.number().int().max(100).optional() }, ({ jql, limit }) =>
+	tool("jira_search", "Read-only: search Jira with JQL. Gaam never writes to Jira — tasks the user creates stay local and private. e.g. 'assignee = currentUser() AND statusCategory != Done'.", { jql: z.string(), limit: z.number().int().max(100).optional() }, ({ jql, limit }) =>
 		jiraSearch(jql, limit),
 	true);
-
-	tool(
-		"jira_push",
-		"Create a Jira issue from a Gaam task and link them. Uses the project's jira_project unless you pass one. Ask the user before pushing many tasks.",
-		{ task: ref, project: z.string().optional(), issue_type: z.string().optional() },
-		({ task, project, issue_type }, p) => jiraPush(p, task, { project, issueType: issue_type }),
-	);
 
 	tool(
 		"jira_board",
@@ -673,7 +710,7 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0") {
 		true,
 	);
 
-	tool("git_reviews", "The user's open merge requests (GitLab) and pull requests (GitHub).", {}, () => openReviews(), true);
+	tool("git_reviews", "The user's open merge requests (GitLab) and pull requests (GitHub), for the active workspace.", {}, (_, p) => openReviews(p), true);
 
 	tool("git_sync", "Link commits and MRs that mention task keys or linked Jira keys to their tasks.", { since: z.string().optional() }, ({ since }, p) => gitSync(p, since));
 

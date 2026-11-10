@@ -20,6 +20,9 @@ export function jiraConfigured(): boolean {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+	// The company can see Jira, so Gaam only reads from it.
+	if ((init.method ?? "GET").toUpperCase() !== "GET" && process.env.GAAM_JIRA_WRITE !== "1")
+		throw new GaamError("INVALID", "Gaam is read-only towards Jira; tasks stay local.");
 	const { url, auth } = config();
 	const res = await fetch(`${url}${path}`, {
 		...init,
@@ -72,8 +75,13 @@ export async function jiraIssue(key: string) {
 
 const PRIORITY_NAMES = ["Highest", "High", "Medium", "Low"];
 
-/** Creates a Jira issue from a Gaam task and links them. Idempotent: an already linked task is returned as is. */
+/**
+ * Creates a Jira issue from a Gaam task. Off by default: the user wants Gaam to
+ * stay read-only towards the company Jira, so this only runs with GAAM_JIRA_WRITE=1
+ * and no tool, RPC method or button calls it.
+ */
 export async function jiraPush(p: Planner, ref: string | number, opts: { project?: string; issueType?: string } = {}) {
+	if (process.env.GAAM_JIRA_WRITE !== "1") throw new GaamError("INVALID", "Gaam is read-only towards Jira; tasks stay local.");
 	const task = p.resolveTask(ref);
 	if (task.jira_key) return { task: task.key, issue: await jiraIssue(task.jira_key), created: false };
 	const projectKey =

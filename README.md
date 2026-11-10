@@ -45,7 +45,7 @@ claude mcp add --transport http gaam "http://localhost:4777/mcp?as=claude-code"
 | `day_plan`, `journal_add`, `focus` | سه کار مهم روز، چک‌این انرژی و حال، تایمر تمرکز، ژورنال |
 | `memory_save`, `memory_list` | چیزهایی که درباره‌ی تو یاد می‌گیرد؛ هر ایجنت جدید اول این‌ها را می‌خواند |
 | `insights` | آینه‌ی صادق: خروجی، تمرکز، دقت تخمین، هم‌راستایی با اهداف، انرژی |
-| `jira_search`, `jira_push`, `jira_pull`, `jira_import` | جیرا Cloud و Server |
+| `jira_search`, `jira_pull`, `jira_import` (read-only) | جیرا Cloud و Server |
 | `git_activity`, `git_reviews`, `git_sync`, `task_branch` | کامیت‌ها، MRهای GitLab و PRهای GitHub، لینک خودکار با کلید تسک |
 | `search`, `activity` | جستجوی تمام‌متن فارسی/انگلیسی، لاگ همه‌ی تغییرات |
 

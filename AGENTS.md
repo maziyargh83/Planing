@@ -41,6 +41,10 @@ How it works:
 - **Live UI.** Every write inserts a row into `events`. `/api/stream` polls that table and pushes SSE, so writes from a separate stdio process still show up live.
 - **No build step on the server.** Node runs `.ts` directly through type stripping, so use only erasable syntax: no `enum`, no `namespace`, no parameter properties. Write relative imports with the `.ts` extension, and use `import type` for types.
 
+## Workspaces
+
+`workspaces` holds work and personal (and any others the user adds). Projects, goals, tasks, docs, people, follow-ups and decisions carry a `workspace_id`; journal, day plans, memories and stand-ups belong to the person and stay global. `Planner` takes an optional workspace (`planner.in(key)`, or null for all). List methods filter with `this.ws(alias)`, and inserts call `this.targetWorkspace()`. The UI sends `x-gaam-workspace`; MCP uses `GAAM_WORKSPACE`, `?ws=` or the `workspace_use` tool. When you add a table that belongs to a context, give it a `workspace_id` and scope its queries the same way.
+
 ## Adding a feature
 
 1. Add a schema change as a **new** entry in `MIGRATIONS` in `db.ts`. Never edit an old migration; they are forward-only and the user's database already ran them. If the new table should be searchable, add it to `INDEXED`.
@@ -49,6 +53,18 @@ How it works:
 4. If the UI needs the method, add its name to `PLANNER_METHODS` in `src/server/main.ts`.
 5. Update [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) if the change affects how agents should behave.
 6. Extend `src/mcp/server.test.ts`, then run `pnpm test` and `pnpm typecheck`.
+
+## Assistant (chat)
+
+- `src/ai/protocol.ts` defines the stream protocol, shared by server and UI: text, reasoning, tool input → approval → output, steps, usage and finish events. `applyEvent` folds them into message parts. The server persists the fold and the UI renders the same parts.
+- Providers live in `src/ai/providers/`. Each turns its own stream into protocol events:
+  - `anthropic.ts` uses the official `@anthropic-ai/sdk` in a streaming manual loop: adaptive thinking with a summarized display, effort, top-level prompt caching, eager tool-input streaming, stop-reason checks and `fallbacks: "default"`.
+  - `cli.ts` handles Claude Code and Codex. Their tool calls run inside the CLI, and destructive tools are disabled there.
+  - `ollama.ts` is a native streaming loop.
+- `src/ai/tools.ts` connects Gaam's MCP server in-process for the API providers. Gaam's zod schemas validate every tool call. `needsApproval` lists the tools that pause for the user.
+- `src/ai/assistant.ts` is the runtime. Each run has a sequence-numbered event log; `/api/assistant/:id/stream?after=N` replays from N, so reloading never loses a turn. Provider-native state (the Anthropic transcript, CLI session ids) is saved per thread, append-only. Regenerate and fork cut it back to a prefix and never edit earlier turns.
+- `@`-mentions and page context arrive as `ContextRef`s. `src/ai/context.ts` expands them into an `<attached_context>` block in the user turn and keeps the system prompt stable for caching.
+- **Jira is read-only.** `call()` in `src/integrations/jira.ts` refuses anything other than GET unless `GAAM_JIRA_WRITE=1`. Don't add Jira write paths.
 
 ## UI: Park UI on Panda CSS
 

@@ -357,6 +357,47 @@ const MIGRATIONS: string[] = [
 		insert into search(entity, entity_id, title, body) values ('followups', new.id, new.direction, new.text);
 	end;
 	`,
+	`
+	create table workspaces (
+		id integer primary key,
+		key text not null unique,
+		name text not null,
+		icon text,
+		color text,
+		kind text not null default 'personal' check (kind in ('work','personal','other')),
+		repos text not null default '[]',
+		github_user text,
+		sort integer not null default 0,
+		created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ'))
+	);
+	insert into workspaces (id, key, name, icon, color, kind, sort) values
+		(1, 'snappfood', 'اسنپ‌فود', '🍔', '#f5a524', 'work', 0),
+		(2, 'personal', 'شخصی', '🌿', '#3ecf8e', 'personal', 1);
+
+	alter table projects add column workspace_id integer references workspaces(id);
+	alter table goals add column workspace_id integer references workspaces(id);
+	alter table tasks add column workspace_id integer references workspaces(id);
+	alter table docs add column workspace_id integer references workspaces(id);
+	alter table people add column workspace_id integer references workspaces(id);
+	alter table followups add column workspace_id integer references workspaces(id);
+	alter table decisions add column workspace_id integer references workspaces(id);
+	update projects set workspace_id = 1;
+	update goals set workspace_id = 1;
+	update tasks set workspace_id = coalesce((select workspace_id from projects p where p.id = tasks.project_id), 1);
+	update docs set workspace_id = 1;
+	update people set workspace_id = 1;
+	update followups set workspace_id = 1;
+	update decisions set workspace_id = 1;
+	create index tasks_workspace on tasks(workspace_id, status);
+	`,
+	`
+	alter table messages add column parts text not null default '[]';
+	alter table messages add column meta text not null default '{}';
+	alter table threads add column native text;
+	alter table threads add column workspace text;
+	alter table threads add column effort text;
+	alter table threads add column pinned integer not null default 0;
+	`,
 ];
 
 function searchTriggers(): string {

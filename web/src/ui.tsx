@@ -1,3 +1,4 @@
+import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createEffect, createResource, createRoot, createSignal, For, type JSX, on, onCleanup, onMount, Show } from "solid-js";
 import * as Drawer from "~/components/ui/drawer";
 import { confirmAction } from "~/kit.tsx";
@@ -94,22 +95,22 @@ export function TaskRow(props: { task: Task & { children?: Task[]; project_key?:
 						</a>
 					</Show>
 					<Show when={t().due}>
-						<span class="chip" classList={{ "st-blocked": t().due! < new Date().toLocaleDateString("en-CA") && t().status !== "done" }}>
+						<Tag classList={{ "st-blocked": t().due! < new Date().toLocaleDateString("en-CA") && t().status !== "done" }}>
 							📅 {jalali(t().due!)}
-						</span>
+						</Tag>
 					</Show>
-					<For each={t().tags}>{(tag) => <span class="chip">#{tag}</span>}</For>
+					<For each={t().tags}>{(tag) => <Tag>#{tag}</Tag>}</For>
 				</div>
 				<div class="row">
 					{props.extra}
 					<Show when={props.showProject && t().project_key}>
-						<span class="chip accent">{t().project_key}</span>
+						<Tag class="accent">{t().project_key}</Tag>
 					</Show>
 					<Show when={t().priority < 2}>
 						<span class={`chip ${PRIORITY_FA[t().priority]}`}>{PRIORITY_FA[t().priority]}</span>
 					</Show>
 					<Ice value={t().ice} />
-					<span class="chip key">{t().key}</span>
+					<Tag class="key">{t().key}</Tag>
 				</div>
 			</div>
 			<Show when={t().children?.length}>
@@ -132,7 +133,7 @@ export function QuickAdd(props: { project?: string | null; parent?: string; plac
 	};
 	return (
 		<form onSubmit={submit} class="row" style={{ "margin-top": "6px" }}>
-			<input ref={input} class="input" placeholder={props.placeholder ?? "+ تسک جدید… (Enter)"} />
+			<TextInput ref={input} placeholder={props.placeholder ?? "+ تسک جدید… (Enter)"} />
 		</form>
 	);
 }
@@ -192,9 +193,9 @@ export function TaskDrawer() {
 					<>
 						<Drawer.Body>
 							<div class="row" style={{ "margin-bottom": "10px" }}>
-								<span class="chip key">{t().key}</span>
+								<Tag class="key">{t().key}</Tag>
 								<Show when={t().jira_key && t().jira_key !== t().key}>
-									<span class="chip key">🔗 {t().jira_key}</span>
+									<Tag class="key">🔗 {t().jira_key}</Tag>
 								</Show>
 								<Show when={t().external_status}>
 									<a class="chip ltr" href={t().external_url ?? "#"} target="_blank" rel="noreferrer">
@@ -202,9 +203,9 @@ export function TaskDrawer() {
 									</a>
 								</Show>
 								<span class="spacer" />
-								<button class="btn ghost sm" onClick={close}>
+								<Btn kind="ghost sm" onClick={close}>
 									✕
-								</button>
+								</Btn>
 							</div>
 							<input
 								class="inline-edit"
@@ -215,27 +216,25 @@ export function TaskDrawer() {
 							<div class="grid g3" style={{ margin: "16px 0" }}>
 								<label>
 									<div class="field-label">وضعیت</div>
-									<select class="input" value={t().status} onChange={(e) => save({ status: e.currentTarget.value })}>
-										<For each={STATUSES}>{(s) => <option value={s}>{STATUS_FA[s]}</option>}</For>
-									</select>
+									<Choice width="100%" value={t().status} options={STATUSES.map((s) => ({ value: s, label: STATUS_FA[s]! }))} onChange={(v) => save({ status: v })} />
 								</label>
 								<label>
 									<div class="field-label">اولویت</div>
-									<select class="input" value={t().priority} onChange={(e) => save({ priority: Number(e.currentTarget.value) })}>
-										<For each={[0, 1, 2, 3]}>{(p) => <option value={p}>{PRIORITY_FA[p]}</option>}</For>
-									</select>
+									<Choice width="100%" value={t().priority} options={[0, 1, 2, 3].map((p) => ({ value: String(p), label: PRIORITY_FA[p]! }))} onChange={(v) => save({ priority: Number(v) })} />
 								</label>
 								<label>
 									<div class="field-label">اسکوپ</div>
-									<select class="input" value={t().scope ?? ""} onChange={(e) => save({ scope: e.currentTarget.value || null })}>
-										<option value="">تصمیم نگرفته</option>
-										<For each={["in", "later", "out"]}>{(s) => <option value={s}>{SCOPE_FA[s]}</option>}</For>
-									</select>
+									<Choice
+										width="100%"
+										value={t().scope ?? ""}
+										options={[{ value: "", label: "تصمیم نگرفته" }, ...["in", "later", "out"].map((s) => ({ value: s, label: SCOPE_FA[s]! }))]}
+										onChange={(v) => save({ scope: v || null })}
+									/>
 								</label>
 								<label>
 									<div class="field-label">تخمین (ساعت)</div>
-									<input
-										class="input ltr"
+									<TextInput
+									 class="ltr"
 										type="number"
 										step="0.5"
 										value={t().estimate_h ?? ""}
@@ -244,7 +243,7 @@ export function TaskDrawer() {
 								</label>
 								<label>
 									<div class="field-label">ددلاین</div>
-									<input class="input ltr" type="date" value={t().due ?? ""} onChange={(e) => save({ due: e.currentTarget.value || null })} />
+									<TextInput class="ltr" type="date" value={t().due ?? ""} onChange={(e) => save({ due: e.currentTarget.value || null })} />
 								</label>
 								<div>
 									<div class="field-label">زمان واقعی</div>
@@ -254,7 +253,7 @@ export function TaskDrawer() {
 								</div>
 							</div>
 
-							<div class="card" style={{ "margin-bottom": "16px" }}>
+							<Panel style={{ "margin-bottom": "16px" }}>
 								<h3>
 									اولویت‌بندی ICE <span class="spacer" /> <Ice value={t().ice} />
 								</h3>
@@ -263,11 +262,11 @@ export function TaskDrawer() {
 									<Slider label="اطمینان" hint="چقدر مطمئنی که جواب می‌دهد؟" value={t().confidence} onChange={(v) => save({ confidence: v })} />
 									<Slider label="سهولت" hint="چقدر کم‌هزینه است؟" value={t().ease} onChange={(v) => save({ ease: v })} />
 								</div>
-							</div>
+							</Panel>
 
 							<div class="field-label">توضیحات</div>
-							<textarea
-								class="textarea"
+							<TextArea
+							
 								rows="5"
 								placeholder="تعریف «انجام شد» چیست؟"
 								value={t().description ?? ""}
@@ -275,24 +274,19 @@ export function TaskDrawer() {
 							/>
 
 							<div class="row wrap" style={{ margin: "14px 0" }}>
-								<button class="btn" onClick={() => rpc("startFocus", t().key)}>
+								<Btn onClick={() => rpc("startFocus", t().key)}>
 									⏱ شروع تمرکز
-								</button>
-								<button class="btn" onClick={async () => setBranch(await rpc("branchName", t().key))}>
+								</Btn>
+								<Btn onClick={async () => setBranch(await rpc("branchName", t().key))}>
 									⎇ اسم برنچ
-								</button>
-								<Show when={!t().jira_key}>
-									<button class="btn" onClick={() => rpc("jiraPush", t().key).then(() => toast("در جیرا ساخته شد", "win"))}>
-										↗ ساخت در جیرا
-									</button>
-								</Show>
+								</Btn>
 								<span class="spacer" />
-								<button
-									class="btn ghost danger sm"
+								<Btn
+								 kind="ghost danger sm"
 									onClick={async () => (await confirmAction("این تسک و زیرتسک‌هایش حذف شوند؟", "برای نگه داشتن تاریخچه، «کنار گذاشته» بهتر است.")) && rpc("deleteTask", t().key).then(close)}
 								>
 									حذف
-								</button>
+								</Btn>
 							</div>
 							<Show when={branch()}>
 								<pre class="code" onClick={() => navigator.clipboard.writeText(`git switch -c ${branch()}`).then(() => toast("کپی شد"))}>
@@ -309,7 +303,7 @@ export function TaskDrawer() {
 								<For each={bundle().links}>
 									{(l: { kind: string; ref: string; url: string | null; title: string | null }) => (
 										<a class="row small" href={l.url ?? "#"} target="_blank" rel="noreferrer" style={{ padding: "3px 0" }}>
-											<span class="chip">{l.kind}</span>
+											<Tag>{l.kind}</Tag>
 											<span class="ltr faint">{l.ref}</span>
 											<span>{l.title}</span>
 										</a>
@@ -361,18 +355,18 @@ export function Thread(props: { entity: CommentEntity; refId: string | number })
 					</div>
 				)}
 			</For>
-			<textarea
+			<TextArea
 				ref={input}
-				class="textarea"
+			
 				rows="2"
 				placeholder="کامنت… (⌘+Enter)"
 				onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && send()}
 			/>
 			<div class="row">
 				<span class="spacer" />
-				<button class="btn sm" onClick={send}>
+				<Btn kind="sm" onClick={send}>
 					ارسال
-				</button>
+				</Btn>
 			</div>
 		</div>
 	);

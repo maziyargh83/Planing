@@ -14,11 +14,36 @@ export class ApiError extends Error {
 	}
 }
 
+// ── Workspace ──────────────────────────────────────────────────────────────
+
+const WS_KEY = "gaam.workspace";
+function readWorkspace(): string {
+	try {
+		return localStorage.getItem(WS_KEY) ?? "all";
+	} catch {
+		return "all";
+	}
+}
+const [workspace, setWorkspaceSignal] = createSignal(readWorkspace());
+export { workspace };
+/** Switches the whole UI to a workspace key, or "all". Every resource refetches. */
+export function setWorkspace(key: string) {
+	setWorkspaceSignal(key);
+	try {
+		localStorage.setItem(WS_KEY, key);
+	} catch {}
+	bump();
+}
+/** Headers that scope a request to the active workspace. */
+export function wsHeaders(extra: Record<string, string> = {}): Record<string, string> {
+	return workspace() === "all" ? extra : { ...extra, "x-gaam-workspace": workspace() };
+}
+
 /** Calls a Planner method on the server. Names match src/core/planner.ts one to one. */
 export async function rpc<T = any>(method: string, ...args: unknown[]): Promise<T> {
 	const res = await fetch("/api/rpc", {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: wsHeaders({ "Content-Type": "application/json" }),
 		body: JSON.stringify({ method, args }),
 	});
 	const body = await res.json();

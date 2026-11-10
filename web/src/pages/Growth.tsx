@@ -1,7 +1,8 @@
+import { Btn, Choice, Panel, Tag, TextArea, TextInput } from "~/components/app.tsx";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { ask, DATE_SUGGESTIONS, todayIso } from "~/kit.tsx";
 
-import { ago, fa, type Goal, jalali, rpc, toast, version } from "../api.ts";
+import { ago, fa, type Goal, jalali, rpc, toast, version, wsHeaders } from "../api.ts";
 import { go, openTask } from "../ui.tsx";
 import { askAssistant } from "./Knowledge.tsx";
 
@@ -77,9 +78,9 @@ function GoalLine(props: { goal: Goal & { evidence: number }; index: number }) {
 			<span style={{ flex: 1, cursor: "pointer" }} onClick={() => go("/goals")} title={props.goal.why ?? ""}>
 				{props.goal.title}
 			</span>
-			<span class="chip" style={{ color: props.goal.evidence ? "var(--green)" : "var(--faint)" }}>
+			<Tag style={{ color: props.goal.evidence ? "var(--green)" : "var(--faint)" }}>
 				🏅 {fa(props.goal.evidence)}
-			</span>
+			</Tag>
 		</div>
 	);
 }
@@ -95,12 +96,12 @@ export function GrowthPage() {
 							<h1>رشد · {c().cycle ? <span class="ltr">SFPM {c().cycle}</span> : "SFPM"}</h1>
 							<p>هر روز یک قدم کوچک به سمت انتظارات نقش و هدف‌های رشدت؛ با شاهد.</p>
 						</div>
-						<button
-							class="btn primary"
+						<Btn
+						 kind="primary"
 							onClick={() =>
 								fetch("/api/assistant", {
 									method: "POST",
-									headers: { "Content-Type": "application/json" },
+									headers: wsHeaders({ "Content-Type": "application/json" }),
 									body: JSON.stringify({
 										text: "growth_overview را بخوان و مثل یک منتور سینیور، با تکیه بر فیدبک سایکل قبل، بگو این هفته روی کدام دو هدف SFPM عقبم و سه قدم کوچک و مشخص پیشنهاد بده. اگر موافق بودم، تسکشان را بساز.",
 									}),
@@ -110,82 +111,82 @@ export function GrowthPage() {
 							}
 						>
 							✳️ منتور: این هفته روی چه کار کنم؟
-						</button>
+						</Btn>
 					</div>
 
 					<div class="grid g4" style={{ "margin-bottom": "16px" }}>
-						<div class="card stat">
+						<Panel class="stat">
 							<span class="v">🔥 {fa(c().standups.streak)}</span>
 							<span class="l">روز استندآپ ساختارمند پشت سر هم</span>
-						</div>
-						<div class="card stat" style={{ cursor: "pointer" }} onClick={() => go("/people")}>
+						</Panel>
+						<Panel class="stat" style={{ cursor: "pointer" }} onClick={() => go("/people")}>
 							<span class="v">{fa(c().people.contacted_30d)}/{fa(c().people.total)}</span>
 							<span class="l">آدم‌هایی که در ۳۰ روز اخیر با آن‌ها در تماس بودی</span>
-						</div>
-						<div class="card stat">
+						</Panel>
+						<Panel class="stat">
 							<span class="v" style={{ color: c().decisions.needs_alignment ? "var(--red)" : undefined }}>{fa(c().decisions.open)}</span>
 							<span class="l">تصمیم باز{c().decisions.needs_alignment ? ` · ${fa(c().decisions.needs_alignment)} نیازمند alignment` : ""}</span>
-						</div>
-						<div class="card stat">
+						</Panel>
+						<Panel class="stat">
 							<span class="v">{fa([...c().expectations, ...c().development].reduce((a, g) => a + g.evidence, 0))}</span>
 							<span class="l">شاهد ثبت‌شده برای این سایکل</span>
-						</div>
+						</Panel>
 					</div>
 
 					<Show when={c().timeline}>
-						<div class="card" style={{ "margin-bottom": "16px" }}>
+						<Panel style={{ "margin-bottom": "16px" }}>
 							<h3>📅 سایکل</h3>
 							<Timeline stages={c().timeline!} />
-						</div>
+						</Panel>
 					</Show>
 
 					<div class="grid g2" style={{ "margin-bottom": "16px" }}>
-						<div class="card">
+						<Panel>
 							<h3>📌 انتظارات نقش</h3>
 							<For each={c().expectations} fallback={<div class="faint small">هنوز وارد نشده.</div>}>
 								{(g, i) => <GoalLine goal={g} index={i()} />}
 							</For>
-						</div>
-						<div class="card">
+						</Panel>
+						<Panel>
 							<h3>🌱 اهداف رشد شخصی</h3>
 							<For each={c().development}>{(g, i) => <GoalLine goal={g} index={i()} />}</For>
-						</div>
+						</Panel>
 					</div>
 
 					<StandupCard />
 
 					<Show when={c().feedback}>
 						<div class="grid g3" style={{ margin: "16px 0" }}>
-							<div class="card">
+							<Panel>
 								<h3>💪 نقاط قوت (فیدبک سایکل قبل)</h3>
 								<ul class="fb">
 									<For each={c().feedback!.strengths}>{(x) => <li>{x}</li>}</For>
 								</ul>
-							</div>
-							<div class="card">
+							</Panel>
+							<Panel>
 								<h3>🎯 جاهای رشد</h3>
 								<ul class="fb">
 									<For each={c().feedback!.growth}>{(x) => <li>{x}</li>}</For>
 								</ul>
-							</div>
-							<div class="card">
+							</Panel>
+							<Panel>
 								<h3>🛠 برنامه‌ی عملیاتی پیشنهادی</h3>
 								<ul class="fb">
 									<For each={c().feedback!.actions}>{(x) => <li>{x}</li>}</For>
 								</ul>
-							</div>
+							</Panel>
 						</div>
 					</Show>
 
 					<Decisions />
 
 					<Show when={c().history?.length}>
-						<div class="card" style={{ "margin-top": "16px" }}>
+						<Panel style={{ "margin-top": "16px" }}>
 							<h3>📈 سابقه‌ی ارزیابی</h3>
 							<For each={c().history!}>
 								{(h) => (
 									<div class="row small" style={{ padding: "4px 0" }}>
-										<span class="chip ltr">{h.cycle}</span>
+										<Tag class="ltr">{h.cycle}</Tag>
 										<span>{h.tag}</span>
 										<span class="spacer" />
 										<span class="muted">خودم {fa(h.self)}</span>
@@ -193,7 +194,7 @@ export function GrowthPage() {
 									</div>
 								)}
 							</For>
-						</div>
+						</Panel>
 					</Show>
 				</>
 			)}
@@ -216,16 +217,16 @@ function StandupCard() {
 		["help", "🙋 تصمیم یا کمک لازم", "از چه کسی، تا کِی؟"],
 	] as const;
 	return (
-		<div class="card">
+		<Panel>
 			<h3>
 				🗣 استندآپ امروز <span class="faint small">· کوتاه، دقیق، با درخواست مشخص</span>
 				<span class="spacer" />
-				<button class="btn primary sm" onClick={() => askAssistant(STANDUP_PROMPT)}>
+				<Btn kind="primary sm" onClick={() => askAssistant(STANDUP_PROMPT)}>
 					✨ پیش‌نویس از جیرا + گیت
-				</button>
-				<button class="btn sm" onClick={() => navigator.clipboard.writeText(s()!.text).then(() => toast("کپی شد؛ در کانال تیم بفرست"))}>
+				</Btn>
+				<Btn kind="sm" onClick={() => navigator.clipboard.writeText(s()!.text).then(() => toast("کپی شد؛ در کانال تیم بفرست"))}>
 					کپی متن
-				</button>
+				</Btn>
 			</h3>
 			<Show when={previous()?.next}>
 				<div class="promise">
@@ -237,7 +238,7 @@ function StandupCard() {
 					{([field, label, hint]) => (
 						<label>
 							<div class="field-label">{label}</div>
-							<textarea class="textarea" rows="2" placeholder={hint} value={(s() as Record<string, string | null> | undefined)?.[field] ?? ""} onChange={(e) => save(field, e.currentTarget.value)} />
+							<TextArea rows="2" placeholder={hint} value={(s() as Record<string, string | null> | undefined)?.[field] ?? ""} onChange={(e) => save(field, e.currentTarget.value)} />
 						</label>
 					)}
 				</For>
@@ -245,9 +246,9 @@ function StandupCard() {
 			<div class="row small" style={{ "margin-top": "8px" }}>
 				<span class="faint">🔥 {fa(s()?.stats.streak ?? 0)} روز پشت سر هم</span>
 				<span class="spacer" />
-				<button class="btn ghost sm" onClick={() => setShowHistory(!showHistory())}>
+				<Btn kind="ghost sm" onClick={() => setShowHistory(!showHistory())}>
 					{showHistory() ? "بستن تاریخچه" : "تاریخچه"}
-				</button>
+				</Btn>
 			</div>
 			<Show when={showHistory()}>
 				<div class="stack" style={{ "margin-top": "8px" }}>
@@ -261,7 +262,7 @@ function StandupCard() {
 					</For>
 				</div>
 			</Show>
-		</div>
+		</Panel>
 	);
 }
 
@@ -274,7 +275,7 @@ function Decisions() {
 	const preview = () =>
 		impact() === "low" ? "decide" : reversible() ? "decide_and_inform" : ("align_first" as keyof typeof MODE_FA);
 	return (
-		<div class="card">
+		<Panel>
 			<h3>⚖️ دفتر تصمیم‌ها · کِی خودم تصمیم بگیرم، کِی escalate کنم؟</h3>
 			<form
 				class="row wrap"
@@ -284,19 +285,27 @@ function Decisions() {
 					rpc("saveDecision", { title: title().trim(), impact: impact(), reversible: reversible() }).then(() => (setTitle(""), refetch()));
 				}}
 			>
-				<input class="input" style={{ flex: 1, "min-width": "220px" }} placeholder="چه چیزی را باید تصمیم بگیرم؟" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
-				<select class="input" style={{ width: "auto" }} onChange={(e) => setImpact(e.currentTarget.value as "low" | "high")}>
-					<option value="high">اثر زیاد</option>
-					<option value="low">اثر کم</option>
-				</select>
-				<select class="input" style={{ width: "auto" }} onChange={(e) => setReversible(e.currentTarget.value === "1")}>
-					<option value="1">برگشت‌پذیر</option>
-					<option value="0">برگشت‌ناپذیر</option>
-				</select>
-				<span class="chip" style={{ color: MODE_COLOR[preview()] }}>
+				<TextInput style={{ flex: 1, "min-width": "220px" }} placeholder="چه چیزی را باید تصمیم بگیرم؟" value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
+				<Choice
+					value={impact()}
+					options={[
+						{ value: "high", label: "اثر زیاد" },
+						{ value: "low", label: "اثر کم" },
+					]}
+					onChange={(v) => setImpact(v as "low" | "high")}
+				/>
+				<Choice
+					value={reversible() ? "1" : "0"}
+					options={[
+						{ value: "1", label: "برگشت‌پذیر" },
+						{ value: "0", label: "برگشت‌ناپذیر" },
+					]}
+					onChange={(v) => setReversible(v === "1")}
+				/>
+				<Tag style={{ color: MODE_COLOR[preview()] }}>
 					→ {MODE_FA[preview()]}
-				</span>
-				<button class="btn primary sm">ثبت</button>
+				</Tag>
+				<Btn kind="primary sm">ثبت</Btn>
 			</form>
 			<div class="stack" style={{ "margin-top": "10px" }}>
 				<For each={list()} fallback={<div class="faint small">تصمیم‌های فنی را این‌جا ثبت کن تا مرز «مستقل / هماهنگی» برای خودت و لیدت روشن شود.</div>}>
@@ -305,22 +314,23 @@ function Decisions() {
 							<div class="row wrap">
 								<b>{d.title}</b>
 								<Show when={d.project_key}>
-									<span class="chip key">{d.project_key}</span>
+									<Tag class="key">{d.project_key}</Tag>
 								</Show>
-								<span class="chip" style={{ color: MODE_COLOR[d.mode] }}>
+								<Tag style={{ color: MODE_COLOR[d.mode] }}>
 									{MODE_FA[d.mode]}
-								</span>
+								</Tag>
 								<span class="spacer" />
 								<span class="small faint">{ago(d.created_at)}</span>
-								<select class="input" style={{ width: "auto", padding: "0 8px" }} onChange={(e) => save(d.id, { status: e.currentTarget.value })}>
-									<For each={["open", "decided", "revisited"] as const}>
-										{(st) => (
-											<option value={st} selected={st === d.status}>
-												{{ open: "باز", decided: "تصمیم گرفته شد", revisited: "بازبینی شد" }[st]}
-											</option>
-										)}
-									</For>
-								</select>
+								<Choice
+									size="xs"
+									value={d.status}
+									options={[
+										{ value: "open", label: "باز" },
+										{ value: "decided", label: "تصمیم گرفته شد" },
+										{ value: "revisited", label: "بازبینی شد" },
+									]}
+									onChange={(v) => save(d.id, { status: v })}
+								/>
 							</div>
 							<div class="small muted">{d.advice}</div>
 							<div class="grid g3" style={{ "margin-top": "6px" }}>
@@ -337,7 +347,7 @@ function Decisions() {
 					)}
 				</For>
 			</div>
-		</div>
+		</Panel>
 	);
 }
 
@@ -393,7 +403,7 @@ function TeamBoard() {
 	const [team] = createResource(version, () => rpc<TeamMember[]>("teamStatus"));
 	return (
 		<Show when={team()?.length}>
-			<div class="card" style={{ "margin-bottom": "16px" }}>
+			<Panel style={{ "margin-bottom": "16px" }}>
 				<h3>
 					👩‍💻 تیم من <span class="faint small">· از برد جیرا</span>
 				</h3>
@@ -403,19 +413,19 @@ function TeamBoard() {
 							<div class="stack" style={{ gap: "6px" }}>
 								<div class="row">
 									<b>{m.person}</b>
-									<span class="chip ltr">{m.jira_user ?? "jira_user؟"}</span>
+									<Tag class="ltr">{m.jira_user ?? "jira_user؟"}</Tag>
 									<span class="spacer" />
-									<button class="btn sm" onClick={() => askAssistant(`مرا برای ۱:۱ با ${m.person} آماده کن: team_status، پیگیری‌ها و تاریخچه‌ی تعامل‌مان را ببین. بگو کجا گیر کرده، چه فیدبکی بدهم و چطور کمکش کنم (هدف Leadership).`)}>
+									<Btn kind="sm" onClick={() => askAssistant(`مرا برای ۱:۱ با ${m.person} آماده کن: team_status، پیگیری‌ها و تاریخچه‌ی تعامل‌مان را ببین. بگو کجا گیر کرده، چه فیدبکی بدهم و چطور کمکش کنم (هدف Leadership).`)}>
 										☕ آماده‌سازی ۱:۱
-									</button>
+									</Btn>
 								</div>
 								<For each={m.flags}>{(f) => <div class="nudge warn small">⚠️ <span class="ltr">{f}</span></div>}</For>
 								<For each={m.issues.filter((i) => i.category !== "done").slice(0, 6)}>
 									{(i) => (
 										<a class="row small" href={i.url} target="_blank" rel="noreferrer">
-											<span class="chip key">{i.key}</span>
+											<Tag class="key">{i.key}</Tag>
 											<span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>{i.summary}</span>
-											<span class="chip ltr">{i.status}</span>
+											<Tag class="ltr">{i.status}</Tag>
 										</a>
 									)}
 								</For>
@@ -423,7 +433,7 @@ function TeamBoard() {
 						)}
 					</For>
 				</div>
-			</div>
+			</Panel>
 		</Show>
 	);
 }
@@ -451,19 +461,23 @@ export function Followups(props: { person?: string; compact?: boolean }) {
 		rpc("saveFollowup", { text: text().trim(), person: who().trim() || null, direction: dir(), due: due() || null }).then(() => (setText(""), setDue(""), refetch()));
 	};
 	return (
-		<div class="card">
+		<Panel>
 			<h3>↩ پیگیری‌ها <span class="faint small">· قول‌هایم و چیزهایی که منتظرشانم</span></h3>
 			<form class="row wrap" onSubmit={add} style={{ "margin-bottom": "8px" }}>
-				<select class="input" style={{ width: "auto" }} onChange={(e) => setDir(e.currentTarget.value as "mine" | "theirs")}>
-					<option value="mine">من باید…</option>
-					<option value="theirs">منتظرم از…</option>
-				</select>
+				<Choice
+					value={dir()}
+					options={[
+						{ value: "mine", label: "من باید…" },
+						{ value: "theirs", label: "منتظرم از…" },
+					]}
+					onChange={(v) => setDir(v as "mine" | "theirs")}
+				/>
 				<Show when={!props.person}>
-					<input class="input" style={{ width: "140px" }} placeholder="چه کسی" value={who()} onInput={(e) => setWho(e.currentTarget.value)} />
+					<TextInput style={{ width: "140px" }} placeholder="چه کسی" value={who()} onInput={(e) => setWho(e.currentTarget.value)} />
 				</Show>
-				<input class="input" style={{ flex: 1, "min-width": "160px" }} placeholder="چه چیزی" value={text()} onInput={(e) => setText(e.currentTarget.value)} />
-				<input class="input ltr" type="date" style={{ width: "auto" }} value={due()} onInput={(e) => setDue(e.currentTarget.value)} />
-				<button class="btn sm">+</button>
+				<TextInput style={{ flex: 1, "min-width": "160px" }} placeholder="چه چیزی" value={text()} onInput={(e) => setText(e.currentTarget.value)} />
+				<TextInput class="ltr" type="date" style={{ width: "auto" }} value={due()} onInput={(e) => setDue(e.currentTarget.value)} />
+				<Btn kind="sm">+</Btn>
 			</form>
 			<For each={list()} fallback={<div class="faint small">پیگیری بازی نیست.</div>}>
 				{(f) => (
@@ -477,19 +491,19 @@ export function Followups(props: { person?: string; compact?: boolean }) {
 						</Show>
 						<span style={{ flex: 1 }}>{f.text}</span>
 						<Show when={f.task_key}>
-							<span class="chip key" style={{ cursor: "pointer" }} onClick={() => openTask(f.task_key!)}>
+							<Tag class="key" style={{ cursor: "pointer" }} onClick={() => openTask(f.task_key!)}>
 								{f.task_key}
-							</span>
+							</Tag>
 						</Show>
 						<Show when={f.due}>
-							<span class="chip" classList={{ "st-blocked": f.overdue }}>
+							<Tag classList={{ "st-blocked": f.overdue }}>
 								{jalali(f.due!)}
-							</span>
+							</Tag>
 						</Show>
 					</div>
 				)}
 			</For>
-		</div>
+		</Panel>
 	);
 }
 
@@ -526,8 +540,8 @@ export function PeoplePage() {
 						if (name().trim()) rpc("savePerson", { name: name().trim() }).then(() => (setName(""), refetch()));
 					}}
 				>
-					<input class="input" style={{ width: "220px" }} placeholder="اسم…" value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-					<button class="btn primary">+ آدم</button>
+					<TextInput style={{ width: "220px" }} placeholder="اسم…" value={name()} onInput={(e) => setName(e.currentTarget.value)} />
+					<Btn kind="primary">+ آدم</Btn>
 				</form>
 			</div>
 			<TeamBoard />
@@ -537,17 +551,17 @@ export function PeoplePage() {
 			<div class="row" style={{ "margin-bottom": "12px" }}>
 				<For each={[["all", "همه"], ["overdue", "وقت تماس است"], ["assessors", "ارزیاب‌ها"]] as const}>
 					{([id, label]) => (
-						<button class="btn sm" classList={{ primary: filter() === id }} onClick={() => setFilter(id)}>
+						<Btn kind="sm" active={filter() === id} onClick={() => setFilter(id)}>
 							{label}
 							{id === "overdue" ? ` (${fa((people() ?? []).filter((p) => p.overdue).length)})` : ""}
-						</button>
+						</Btn>
 					)}
 				</For>
 			</div>
 			<div class="grid g3">
 				<For each={shown()}>
 					{(p) => (
-						<div class="card stack person" classList={{ overdue: p.overdue }}>
+						<Panel class="stack person" classList={{ overdue: p.overdue }}>
 							<div class="row">
 								<div class="avatar">{p.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</div>
 								<div style={{ flex: 1, "min-width": 0 }}>
@@ -556,23 +570,20 @@ export function PeoplePage() {
 										{p.role ?? p.team ?? ""}
 									</div>
 								</div>
-								<select class="input" style={{ width: "auto", padding: "0 6px" }} onChange={(e) => rpc("savePerson", { id: p.id, relation: e.currentTarget.value }).then(refetch)}>
-									<For each={Object.entries(RELATION_FA)}>
-										{([k, v]) => (
-											<option value={k} selected={k === p.relation}>
-												{v}
-											</option>
-										)}
-									</For>
-								</select>
+								<Choice
+									size="xs"
+									value={p.relation}
+									options={Object.entries(RELATION_FA).map(([value, label]) => ({ value, label }))}
+									onChange={(v) => rpc("savePerson", { id: p.id, relation: v }).then(refetch)}
+								/>
 							</div>
 							<div class="row small wrap">
 								<Show when={p.assessor}>
-									<span class="chip accent">ارزیاب</span>
+									<Tag class="accent">ارزیاب</Tag>
 								</Show>
-								<span class="chip" classList={{ "st-blocked": p.overdue }}>
+								<Tag classList={{ "st-blocked": p.overdue }}>
 									{p.days_since == null ? "هنوز تماسی ثبت نشده" : `آخرین: ${fa(p.days_since)} روز پیش`}
-								</span>
+								</Tag>
 								<span class="faint">هر {fa(p.cadence)} روز</span>
 							</div>
 							<input
@@ -584,13 +595,13 @@ export function PeoplePage() {
 							<div class="row wrap" style={{ gap: "4px" }}>
 								<For each={ACTIONS}>
 									{([kind, label]) => (
-										<button class="btn sm" onClick={() => log(p, kind)}>
+										<Btn kind="sm" onClick={() => log(p, kind)}>
 											{label}
-										</button>
+										</Btn>
 									)}
 								</For>
 							</div>
-						</div>
+						</Panel>
 					)}
 				</For>
 			</div>

@@ -1,3 +1,4 @@
+import { Choice } from "~/components/app.tsx";
 import { LocaleProvider } from "@ark-ui/solid/locale";
 import { createSignal, For, type JSX, Show } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -103,15 +104,7 @@ function DialogHost() {
 															/>
 														}
 													>
-														<select class="input" value={values[f.name]} onChange={(e) => setValues(f.name, e.currentTarget.value)}>
-															<For each={f.options}>
-																{(o) => (
-																	<option value={o.value} selected={o.value === values[f.name]}>
-																		{o.label}
-																	</option>
-																)}
-															</For>
-														</select>
+														<Choice width="100%" value={values[f.name]} options={f.options ?? []} onChange={(v) => setValues(f.name, v)} />
 													</Show>
 												}
 											>
