@@ -9,3 +9,6 @@ web/styled-system
 
 *.db.vectors/
 services/memory/__pycache__/
+
+extension/lib
+extension/fonts

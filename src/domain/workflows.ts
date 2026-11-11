@@ -1,5 +1,5 @@
 import type { Planner } from "./planner.ts";
-import { tx } from "./db.ts";
+import { tx } from "../storage/db.ts";
 import { GaamError } from "./types.ts";
 import { Knowledge } from "./knowledge.ts";
 import { Recall, type Hit } from "../retrieval/recall.ts";

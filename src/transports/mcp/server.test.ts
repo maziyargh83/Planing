@@ -4,8 +4,8 @@ import { test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
-import { openDb } from "../core/db.ts";
-import { boardStatus } from "../integrations/jira.ts";
+import { openDb } from "../../storage/db.ts";
+import { boardStatus } from "../../integrations/jira.ts";
 import { createMcpServer } from "./server.ts";
 
 async function connect() {

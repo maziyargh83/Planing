@@ -4,8 +4,8 @@
  *
  *   GAAM_DB=~/.gaam/demo.db pnpm seed
  */
-import { openDb } from "../src/core/db.ts";
-import { localDay, Planner } from "../src/core/planner.ts";
+import { openDb } from "../src/storage/db.ts";
+import { localDay, Planner } from "../src/domain/planner.ts";
 
 const db = openDb();
 if ((db.prepare("select count(*) as n from projects").get() as { n: number }).n > 0) {

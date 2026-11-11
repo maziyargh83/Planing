@@ -1,4 +1,4 @@
-import { localDay, type Planner } from "../core/planner.ts";
+import { localDay, type Planner } from "../domain/planner.ts";
 import { gitActivity } from "./git.ts";
 
 const DAYS = 14;

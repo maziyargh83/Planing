@@ -1,5 +1,5 @@
-import { context } from "../core/coach.ts";
-import type { Planner } from "../core/planner.ts";
+import { context } from "../domain/coach.ts";
+import type { Planner } from "../domain/planner.ts";
 import { Recall, type Hit } from "../retrieval/recall.ts";
 import { resolveContext } from "./context.ts";
 import type { ContextRef } from "./protocol.ts";

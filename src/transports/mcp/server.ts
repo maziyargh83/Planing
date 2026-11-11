@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { context, insights, nudges } from "../core/coach.ts";
-import { Growth, INTERACTIONS, RELATIONS } from "../core/growth.ts";
-import { DOC_KINDS, Knowledge } from "../core/knowledge.ts";
-import { standupContext, teamStatus } from "../integrations/standup.ts";
-import type { Db } from "../core/db.ts";
-import { localDay, Planner, type TaskInput } from "../core/planner.ts";
+import { context, insights, nudges } from "../../domain/coach.ts";
+import { Growth, INTERACTIONS, RELATIONS } from "../../domain/growth.ts";
+import { DOC_KINDS, Knowledge } from "../../domain/knowledge.ts";
+import { standupContext, teamStatus } from "../../integrations/standup.ts";
+import type { Db } from "../../storage/db.ts";
+import { localDay, Planner, type TaskInput } from "../../domain/planner.ts";
 import {
 	ASK_KINDS,
 	COMMENT_ENTITIES,
@@ -21,12 +21,12 @@ import {
 	PROJECT_STAGES,
 	SCOPES,
 	TASK_STATUSES,
-} from "../core/types.ts";
-import { branchName, gitActivity, gitSync, openReviews } from "../integrations/git.ts";
-import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraImport, jiraPull, jiraSearch, savedBoard } from "../integrations/jira.ts";
+} from "../../domain/types.ts";
+import { branchName, gitActivity, gitSync, openReviews } from "../../integrations/git.ts";
+import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraImport, jiraPull, jiraSearch, savedBoard } from "../../integrations/jira.ts";
 import { PROMPTS } from "./prompts.ts";
 
-const GUIDE = readFileSync(new URL("../../docs/AGENT_GUIDE.md", import.meta.url), "utf8");
+const GUIDE = readFileSync(new URL("../../../docs/AGENT_GUIDE.md", import.meta.url), "utf8");
 
 const INSTRUCTIONS = `Gaam (گام) is the user's personal planner and second brain. You are their planning partner.
 The full guide — model, lifecycle, ICE scale, ask/memory/comment etiquette, playbooks — is the gaam_guide tool (or gaam://guide). Read it once per conversation.
@@ -128,7 +128,7 @@ export function createMcpServer(db: Db, actor?: string, version = "0.1.0", works
 		{ id: z.string() }, ({ id }, p) => p.recallSource(id), true);
 	tool("recall_status", "Inspect local retrieval sources, chunk count, pending embeddings and embedding model. No model download or remote call.", {}, (_, p) => p.recallStatus(), true);
 	tool("recall_reindex", "Embed at most 64 pending chunks using the configured Ollama embedding model and update LanceDB. Repeat until pending is zero. Sources stay in SQLite; the index is rebuildable.", {}, (_, p) => p.recallReindex());
-	tool("memory_propose", "Propose a durable fact learned from the USER, not model output. Does not change confirmed memories. Include provenance such as thread:12/message:34; use replaces for a correction. The user reviews proposals in /recall. Do not store secrets or private facts about other people.",
+	tool("memory_propose", "Propose a durable fact learned from the USER, not model output. Topics: preference, pattern (observed behaviour), context (role, team, situation), value, skill, constraint, goal; feedback someone gave the user is a pattern (how they work) or context (what is expected of them). Does not change confirmed memories. Include provenance such as thread:12/message:34; use replaces for a correction. The user reviews proposals in /recall. Do not store secrets or private facts about other people.",
 		{ topic: z.enum(MEMORY_TOPICS), fact: z.string().min(1).max(4000), source: z.string().min(1).max(500), replaces: z.number().int().nullish() }, (input, p) => p.memoryPropose(input));
 	tool("memory_proposals", "List pending memory proposals in this workspace for the user to review.", {}, (_, p) => p.memoryProposals(), true);
 	tool("memory_review", "Accept or reject ONE proposal only after the user explicitly reviews it. Accepted memories become global personal facts; replacements preserve history.",

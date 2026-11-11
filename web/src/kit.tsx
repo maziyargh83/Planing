@@ -36,11 +36,13 @@ interface DialogRequest {
 
 const [request, setRequest] = createSignal<DialogRequest | null>(null);
 const [values, setValues] = createStore<Record<string, string>>({});
+const [errors, setErrors] = createStore<Record<string, string>>({});
 
 /** A real dialog instead of window.prompt: resolves with the values, or null when cancelled. */
 export function ask(opts: Omit<DialogRequest, "resolve" | "confirm"> & { confirm?: string }): Promise<Record<string, string> | null> {
 	return new Promise((resolve) => {
 		setValues(Object.fromEntries(opts.fields.map((f) => [f.name, f.value ?? ""])));
+		setErrors({});
 		setRequest({ ...opts, confirm: opts.confirm ?? "تأیید", resolve });
 	});
 }
@@ -68,14 +70,24 @@ function DialogHost() {
 		e?.preventDefault();
 		const r = request();
 		if (!r) return;
-		if (r.fields.some((f) => f.required && !values[f.name]?.trim())) return;
+		const missing = r.fields.filter((f) => f.required && !values[f.name]?.trim());
+		if (missing.length) {
+			setErrors(Object.fromEntries(missing.map((f) => [f.name, "این فیلد را کامل کن."])));
+			requestAnimationFrame(() => document.getElementById(`ask-field-${missing[0]!.name}`)?.querySelector<HTMLElement>("input, textarea, button")?.focus());
+			return;
+		}
+		setErrors({});
 		close({ ...values });
+	};
+	const setField = (name: string, value: string) => {
+		setValues(name, value);
+		if (errors[name]) setErrors(name, "");
 	};
 	return (
 		<Dialog.Root open={Boolean(request())} onOpenChange={(e) => !e.open && close(null)} size="sm" lazyMount unmountOnExit>
 			<Dialog.Backdrop />
 			<Dialog.Positioner>
-				<Dialog.Content>
+					<Dialog.Content class="guided-dialog">
 					<form onSubmit={submit}>
 						<Dialog.Header>
 							<Dialog.Title>{request()?.title}</Dialog.Title>
@@ -87,43 +99,44 @@ function DialogHost() {
 							<Dialog.Body>
 								<For each={request()?.fields}>
 									{(f, i) => (
-										<FormField label={f.label} hint={f.hint} class="dlg-field">
+										<FormField id={`ask-field-${f.name}`} label={f.label} hint={f.hint} error={errors[f.name]} required={f.required} class="dlg-field">
 											<Switch
 												fallback={
 													<Input
 														autofocus={i() === 0}
+														aria-invalid={Boolean(errors[f.name])}
 														type={f.type === "number" ? "number" : "text"}
 														dir={f.type === "number" ? "ltr" : undefined}
 														placeholder={f.placeholder}
 														value={values[f.name] ?? ""}
-														onInput={(e) => setValues(f.name, e.currentTarget.value)}
+														onInput={(e) => setField(f.name, e.currentTarget.value)}
 													/>
 												}
 											>
 												<Match when={f.type === "textarea"}>
-													<Textarea autofocus={i() === 0} rows={4} placeholder={f.placeholder} value={values[f.name] ?? ""} onInput={(e) => setValues(f.name, e.currentTarget.value)} />
+													<Textarea autofocus={i() === 0} aria-invalid={Boolean(errors[f.name])} rows={4} placeholder={f.placeholder} value={values[f.name] ?? ""} onInput={(e) => setField(f.name, e.currentTarget.value)} />
 												</Match>
 												<Match when={f.type === "select"}>
-													<Choice width="100%" value={values[f.name]} options={f.options ?? []} onChange={(v) => setValues(f.name, v)} />
+													<Choice width="100%" value={values[f.name]} options={f.options ?? []} onChange={(v) => setField(f.name, v)} />
 												</Match>
 												<Match when={f.type === "pills"}>
-													<Pills value={values[f.name]} options={(f.options ?? []).map((o) => ({ value: o.value, label: o.label }))} onChange={(v) => setValues(f.name, v)} />
+													<Pills label={f.label} invalid={Boolean(errors[f.name])} value={values[f.name]} options={(f.options ?? []).map((o) => ({ value: o.value, label: o.label }))} onChange={(v) => setField(f.name, v)} />
 												</Match>
 												<Match when={f.type === "date"}>
-													<DateField value={values[f.name] || null} onChange={(v) => setValues(f.name, v ?? "")} />
+													<DateField invalid={Boolean(errors[f.name])} value={values[f.name] || null} onChange={(v) => setField(f.name, v ?? "")} />
 												</Match>
 												<Match when={f.type === "person"}>
-													<PersonField value={values[f.name] || null} onChange={(v) => setValues(f.name, v ?? "")} />
+													<PersonField invalid={Boolean(errors[f.name])} value={values[f.name] || null} onChange={(v) => setField(f.name, v ?? "")} />
 												</Match>
 												<Match when={f.type === "hours"}>
-													<HoursField value={values[f.name] ? Number(values[f.name]) : null} onChange={(v) => setValues(f.name, v == null ? "" : String(v))} />
+													<HoursField value={values[f.name] ? Number(values[f.name]) : null} onChange={(v) => setField(f.name, v == null ? "" : String(v))} />
 												</Match>
 											</Switch>
 											<Show when={f.suggestions?.length}>
 												<div class="pills sm">
 													<For each={f.suggestions}>
 														{(s) => (
-															<button type="button" class="pill" classList={{ on: values[f.name] === s.value }} onClick={() => setValues(f.name, s.value)}>
+															<button type="button" class="pill" classList={{ on: values[f.name] === s.value }} onClick={() => setField(f.name, s.value)}>
 																{s.label}
 															</button>
 														)}

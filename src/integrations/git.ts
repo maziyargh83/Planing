@@ -4,8 +4,8 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
-import type { Planner } from "../core/planner.ts";
-import { GaamError, type Task } from "../core/types.ts";
+import type { Planner } from "../domain/planner.ts";
+import { GaamError, type Task } from "../domain/types.ts";
 
 const run = promisify(execFile);
 const KEY_PATTERN = /\b[A-Z][A-Z0-9]{0,9}-\d+\b/g;

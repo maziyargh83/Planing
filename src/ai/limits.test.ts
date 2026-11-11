@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { openDb } from "../core/db.ts";
+import { openDb } from "../storage/db.ts";
 import { assertWithinBudget, DEFAULTS, limitRows, readLimits, usage } from "./limits.ts";
 import { AiStore } from "./store.ts";
 

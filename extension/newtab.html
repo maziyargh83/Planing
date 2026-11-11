@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		<title>گام</title>
+		<link rel="stylesheet" href="newtab.css" />
+		<script type="module" src="lib/newtab.js"></script>
+	</head>
+	<body data-state="loading">
+		<main class="page">
+			<header class="head">
+				<div class="head-text">
+					<h1 id="greet">سلام</h1>
+					<div class="muted"><span id="date"></span></div>
+					<div id="stats" class="stats"></div>
+				</div>
+				<a id="open-app" class="brand" href="http://localhost:4777/#/now" title="باز کردن گام">گام ↗</a>
+			</header>
+
+			<nav id="workspaces" class="workspaces" aria-label="فضای کار"></nav>
+
+			<div class="grid when-ready">
+				<section class="main-col">
+					<div id="intention" class="intention"></div>
+					<article id="step" class="card step" aria-live="polite"></article>
+					<div class="capture">
+						<input id="capture" type="text" dir="auto" autocomplete="off" aria-label="ثبت سریع" placeholder="یک خط بنویس: «۱:۱ با شقایق فردا»، «درس: …»، «منتظرم از علی برای API»" />
+						<div id="capture-preview" class="preview"></div>
+					</div>
+					<div id="path" class="path"></div>
+				</section>
+
+				<aside class="side-col" aria-label="آنچه دور و برت در جریان است">
+					<section id="nudges" class="panel" hidden></section>
+					<section id="brief" class="panel" hidden></section>
+					<section id="meetings" class="panel" hidden></section>
+					<section id="asks" class="panel" hidden></section>
+					<section id="doing" class="panel" hidden></section>
+					<section id="reviews" class="panel" hidden></section>
+					<section id="followups" class="panel" hidden></section>
+				</aside>
+			</div>
+
+			<section class="when-loading card calm" role="status">
+				<p class="muted">در حال دریافت برنامهٔ امروز…</p>
+			</section>
+
+			<section class="when-offline card calm" role="status">
+				<div class="emoji">🌙</div>
+				<h2>گام الان در دسترس نیست</h2>
+				<p class="muted">سرور گام روی این سیستم روشن نیست. با <code class="ltr">pnpm dev</code> روشنش کن؛ این صفحه خودش دوباره وصل می‌شود.</p>
+				<button id="retry" type="button" class="btn">دوباره امتحان کن</button>
+			</section>
+
+			<section class="when-forbidden card calm" role="status">
+				<div class="emoji">🔐</div>
+				<h2>سرور هنوز این افزونه را نمی‌شناسد</h2>
+				<p class="muted">این خط را به فایل <code class="ltr">.env</code> گام اضافه کن و سرور را دوباره اجرا کن:</p>
+				<code id="forbidden-line" class="ltr block"></code>
+			</section>
+
+			<footer id="foot" class="foot"></footer>
+		</main>
+		<div id="toast" class="toast" role="status"></div>
+	</body>
+</html>

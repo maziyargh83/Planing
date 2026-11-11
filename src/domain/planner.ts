@@ -2,7 +2,7 @@ import { MemoryService } from "../integrations/memory-service.ts";
 import { Recall } from "../retrieval/recall.ts";
 import { MemoryReview } from "./memory.ts";
 import { Workflows, type WorkflowKind, type WorkflowAction } from "./workflows.ts";
-import { type Db, tx } from "./db.ts";
+import { type Db, tx } from "../storage/db.ts";
 import {
 	type Ask,
 	type AskKind,

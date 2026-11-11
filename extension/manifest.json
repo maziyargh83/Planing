@@ -1,0 +1,11 @@
+{
+	"manifest_version": 3,
+	"name": "گام · Gaam",
+	"short_name": "Gaam",
+	"description": "Gaam lite on the new-tab page: your next step, today's path and a quick-capture line, from the local Gaam server.",
+	"version": "0.1.0",
+	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAquNmDBY441Qaf+MxwBRN5zZyYooKNBznl1vC+vGLMcVhJ+aAeiK70TUetL9arh6ymwi6DHhNAAMLqkdEZ3hJ1GGhPzl/ai6NOKZW5XiV0z2ZNQIBgbsljkPhPwWjY2bzHxonLf0M/BTdEt7l1gxJcFdY6l6ViHORaPhJC1kLDp8vgo9YKU2vLUEMnFuYf0Jtvah1T0je/ON1mR9V1jhGu5VM4sbQGR6liMuMf5LaKEp3SBEVB/8/t+idmOtJs0nyOZRL2W9Hn1FPGsTTc04Ga7UL56Wxe3wNJg7dMXJUY6mCn6LqbAYSGVHAq8SZTBa3Z/B+qUM262seWjIpu6/XNwIDAQAB",
+	"chrome_url_overrides": { "newtab": "newtab.html" },
+	"host_permissions": ["http://127.0.0.1:4777/*"],
+	"minimum_chrome_version": "120"
+}

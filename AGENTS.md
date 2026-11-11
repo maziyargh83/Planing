@@ -21,17 +21,18 @@ The user's real data is in `~/.gaam/gaam.db`. Never run the seed or experiments 
 ## Architecture
 
 ```
-src/core/db.ts            node:sqlite, migrations (pragma user_version), FTS5 triggers
-src/core/types.ts         enums and row types, shared with the web UI
-src/core/planner.ts       Planner — the domain layer. Every write goes through it and logs an event.
-src/core/coach.ts         insights(), nudges(), context(): read-only analytics
-src/integrations/         jira.ts, git.ts (local git, GitLab, GitHub)
-src/mcp/server.ts         createMcpServer(): tools, resources, prompts
-src/mcp/prompts.ts        workflow prompts (idea_to_plan, plan_my_day, …)
-src/mcp/stdio.ts          stdio entry point
-src/server/main.ts        Hono: /api/rpc, /api/stream (SSE), /mcp (stateless HTTP), static UI
-web/src/                  SolidJS + TanStack Router/Query, RTL Persian UI; api.ts calls Planner methods through /api/rpc
-docs/AGENT_GUIDE.md       how agents should use Gaam (served over MCP)
+src/storage/db.ts            node:sqlite, migrations (pragma user_version), FTS5 triggers
+src/domain/types.ts         enums and row types, shared with the web UI
+src/domain/planner.ts       Planner — the domain layer. Every write goes through it and logs an event.
+src/domain/coach.ts         insights(), nudges(), context(): read-only analytics
+src/integrations/           jira.ts, git.ts (local git, GitLab, GitHub)
+src/transports/mcp/server.ts  createMcpServer(): tools, resources, prompts
+src/transports/mcp/prompts.ts workflow prompts (idea_to_plan, plan_my_day, …)
+src/transports/mcp/stdio.ts   stdio entry point
+src/transports/http/main.ts  Hono: /api/rpc, /api/stream (SSE), /mcp (stateless HTTP), static UI
+web/src/                    SolidJS + TanStack Router/Query, RTL Persian UI; api.ts calls Planner methods through /api/rpc
+docs/AGENT_GUIDE.md         how agents should use Gaam (served over MCP)
+extension/                  Chrome new-tab lite page (MV3, plain DOM); `pnpm extension` strips src/newtab.ts and web/src/capture.ts into lib/
 ```
 
 How it works:
@@ -50,9 +51,9 @@ How it works:
 1. Add a schema change as a **new** entry in `MIGRATIONS` in `db.ts`. Never edit an old migration; they are forward-only and the user's database already ran them. If the new table should be searchable, add it to `INDEXED`.
 2. Add a `Planner` method. It must validate references (resolve them or throw `GaamError("NOT_FOUND", …)` with a hint about which tool to call) and call `this.log(...)`.
 3. Expose it as an MCP tool in `server.ts`. The tool description is the only documentation the agent sees, so say when to use the tool and what the fields mean. Mark read-only tools by passing `true` as the last argument to `tool(...)`.
-4. If the UI needs the method, add its name to `PLANNER_METHODS` in `src/server/main.ts`.
+4. If the UI needs the method, add its name to `PLANNER_METHODS` in `src/transports/http/main.ts`.
 5. Update [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) if the change affects how agents should behave.
-6. Extend `src/mcp/server.test.ts`, then run `pnpm test` and `pnpm typecheck`.
+6. Extend `src/transports/mcp/server.test.ts`, then run `pnpm test` and `pnpm typecheck`.
 
 ## Assistant (chat)
 
@@ -84,4 +85,4 @@ How it works:
 - UI copy is Persian and uses ZWNJ correctly (می‌شود, پروژه‌ها). Keys, code and identifiers are English. Show numbers with `fa()` and dates with `jalali()` from `web/src/api.ts`.
 - The UI is RTL. Use logical CSS properties (`inset-inline-*`, `margin-inline-*`, `border-inline-*`) and colour tokens from `:root` in `styles.css`. The layout must work at 375px wide with no horizontal scroll.
 - Keep dependencies minimal. Runtime dependencies are `hono`, `@hono/node-server`, `@modelcontextprotocol/sdk` and `zod`, and adding another needs a real reason.
-- Bind the server to 127.0.0.1. The origin check in `main.ts` blocks requests from other sites, so do not loosen it.
+- Bind the server to 127.0.0.1. The origin check (`src/transports/http/origin.ts`) blocks requests from other sites, so do not loosen it. The only exception is the extension ids listed in `GAAM_EXTENSION_ORIGIN`.

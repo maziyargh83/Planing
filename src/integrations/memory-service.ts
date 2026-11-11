@@ -1,7 +1,7 @@
-import { tx } from "../core/db.ts";
+import { tx } from "../storage/db.ts";
 import { digest } from "../retrieval/text.ts";
-import type { Planner } from "../core/planner.ts";
-import { GaamError, MEMORY_TOPICS, type MemoryTopic } from "../core/types.ts";
+import type { Planner } from "../domain/planner.ts";
+import { GaamError, MEMORY_TOPICS, type MemoryTopic } from "../domain/types.ts";
 
 /** Optional local Mem0/Graphiti sidecar. Its output is always a proposal, never an accepted fact. */
 export class MemoryService {

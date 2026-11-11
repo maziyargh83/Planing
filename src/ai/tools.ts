@@ -1,8 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
-import type { Db } from "../core/db.ts";
-import { createMcpServer } from "../mcp/server.ts";
+import type { Db } from "../storage/db.ts";
+import { createMcpServer } from "../transports/mcp/server.ts";
 
 export interface ToolDef {
 	name: string;

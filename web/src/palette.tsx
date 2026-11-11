@@ -68,8 +68,9 @@ async function commit(c: Capture) {
 	switch (c.intent) {
 		case "task": {
 			const [t] = await rpc("createTasks", c.project, [{ title, due: c.due, priority: c.priority ?? undefined, tags: c.tags }]);
+			if (!t?.key) throw new Error("کار ساخته نشد؛ پروژه یا عنوان را بررسی کن.");
 			toast(`${t.key} ساخته شد`, "win");
-			return;
+			return { openTask: t.key };
 		}
 		case "followup_mine":
 		case "followup_theirs":
@@ -112,6 +113,8 @@ export function Palette() {
 	const [query, setQuery] = createSignal("");
 	const [sel, setSel] = createSignal(0);
 	const [found, setFound] = createSignal<Item[]>([]);
+	const [running, setRunning] = createSignal(false);
+	const [runError, setRunError] = createSignal("");
 	const [people] = createResource(open, () => rpc<Person[]>("people"));
 	let input: HTMLInputElement | undefined;
 
@@ -157,10 +160,21 @@ export function Palette() {
 	});
 
 	const run = async (item?: Item) => {
-		if (!item) return;
-		setOpen(false);
-		setQuery("");
-		await item.run();
+		if (!item || running()) return;
+		setRunning(true);
+		setRunError("");
+		try {
+			const result = await item.run();
+			setOpen(false);
+			setQuery("");
+			if (result && typeof result === "object" && "openTask" in result && typeof result.openTask === "string") {
+				requestAnimationFrame(() => openTask(result.openTask as string));
+			}
+		} catch (error) {
+			setRunError(error instanceof Error ? error.message : "ثبت انجام نشد. دوباره تلاش کن.");
+		} finally {
+			setRunning(false);
+		}
 	};
 
 	const onKey = (e: KeyboardEvent) => {
@@ -173,7 +187,7 @@ export function Palette() {
 	onCleanup(() => window.removeEventListener("keydown", onKey));
 
 	return (
-		<Dialog.Root open={open()} onOpenChange={(e) => setOpen(e.open)} placement="top" size="lg" initialFocusEl={() => input ?? null}>
+		<Dialog.Root open={open()} onOpenChange={(e) => { setOpen(e.open); if (e.open) setRunError(""); }} placement="top" size="lg" initialFocusEl={() => input ?? null}>
 			<Dialog.Backdrop />
 			<Dialog.Positioner>
 				<Dialog.Content class="palette2">
@@ -189,8 +203,9 @@ export function Palette() {
 							aria-label={searchOnly() ? "جستجو" : "ثبت سریع"}
 							placeholder={searchOnly() ? "نام کار، سند یا صفحه را بنویس…" : "مثلاً پیگیری با شایان تا پنجشنبه…"}
 							value={query()}
-							onInput={(e) => setQuery(e.currentTarget.value)}
+							onInput={(e) => { setQuery(e.currentTarget.value); setRunError(""); }}
 							onKeyDown={(e) => {
+								if (running()) return;
 								if (e.key === "ArrowDown") (e.preventDefault(), setSel((s) => Math.min(s + 1, items().length - 1)));
 								if (e.key === "ArrowUp") (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)));
 								if (e.key === "Enter" && !e.isComposing) (e.preventDefault(), run(items()[sel()]));
@@ -219,10 +234,13 @@ export function Palette() {
 								</div>
 							)}
 						</Show>
-						<div class="palette-results">
+						<Show when={runError()}>
+							<div class="palette-error" role="alert">{runError()}</div>
+						</Show>
+						<div class="palette-results" role="listbox" aria-label="نتیجه‌ها">
 							<For each={items()} fallback={<p class="muted palette-empty">نتیجه‌ای پیدا نشد.</p>}>
 								{(item, i) => (
-									<div class="hit" classList={{ sel: sel() === i() }} onMouseEnter={() => setSel(i())} onClick={() => run(item)}>
+									<button type="button" role="option" aria-selected={sel() === i()} class="hit" classList={{ sel: sel() === i() }} disabled={running()} onMouseEnter={() => setSel(i())} onClick={() => run(item)}>
 										<span class="hit-icon">{item.icon}</span>
 										<div style={{ flex: 1, "min-width": 0 }}>
 											<div class="hit-label">{item.label}</div>
@@ -231,12 +249,14 @@ export function Palette() {
 											</Show>
 										</div>
 										<Tag>{item.hint}</Tag>
-									</div>
+									</button>
 								)}
 							</For>
 						</div>
 						<div class="palette-foot small faint">
-							<Kbd>↵</Kbd> اجرا · <Kbd>↑↓</Kbd> انتخاب · <Kbd>Esc</Kbd> بستن
+							<Show when={running()} fallback={<><Kbd>↵</Kbd> اجرا · <Kbd>↑↓</Kbd> انتخاب · <Kbd>Esc</Kbd> بستن</>}>
+								<span class="palette-spinner" aria-hidden="true" /> در حال ثبت…
+							</Show>
 						</div>
 					</Suspense>
 				</Dialog.Content>

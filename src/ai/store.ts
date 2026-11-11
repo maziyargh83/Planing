@@ -1,5 +1,5 @@
-import type { Db } from "../core/db.ts";
-import { type Automation, GaamError, type Message, type ProviderId, type Thread } from "../core/types.ts";
+import type { Db } from "../storage/db.ts";
+import { type Automation, GaamError, type Message, type ProviderId, type Thread } from "../domain/types.ts";
 
 type Param = string | number | null;
 

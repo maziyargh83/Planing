@@ -2,9 +2,9 @@ import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { Table } from "@lancedb/lancedb";
-import { tx, type Db } from "../core/db.ts";
-import type { Planner } from "../core/planner.ts";
-import { GaamError } from "../core/types.ts";
+import { tx, type Db } from "../storage/db.ts";
+import type { Planner } from "../domain/planner.ts";
+import { GaamError } from "../domain/types.ts";
 import { chunks, digest, normalize, terms } from "./text.ts";
 import { ollamaEmbeddings, type Embeddings } from "./embeddings.ts";
 

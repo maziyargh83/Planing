@@ -43,7 +43,8 @@ export const go = (path: string) => {
 
 // ── Task drawer (global) ───────────────────────────────────────────────────
 
-const [openTaskKey, setOpenTaskKey] = createSignal<string | null>(null);
+/** `#/now?task=KEY` opens a task straight away: the new-tab extension links here. */
+const [openTaskKey, setOpenTaskKey] = createSignal<string | null>(new URLSearchParams(location.hash.split("?")[1] ?? "").get("task"));
 export const openTask = (key: string) => setOpenTaskKey(key);
 createRoot(() => createEffect(on(route, () => setOpenTaskKey(null), { defer: true })));
 
@@ -77,17 +78,20 @@ export function TaskRow(props: { task: Task & { children?: Task[]; project_key?:
 		<>
 			<div class="task" classList={{ done: t().status === "done" || t().status === "dropped" }}>
 				<button
+				type="button"
 					class="check"
 					classList={{ on: t().status === "done", doing: t().status === "doing" }}
+					aria-label={t().status === "done" ? `بازگرداندن ${t().title}` : `انجام ${t().title}`}
+					aria-pressed={t().status === "done"}
 					title={STATUS_FA[t().status]}
 					onClick={() => setStatus(t(), t().status === "done" ? "todo" : "done")}
 				>
 					✓
 				</button>
 				<div class="row" style={{ "min-width": 0 }}>
-					<span class="title" onClick={() => openTask(t().key)}>
+					<button type="button" class="title task-title-button" aria-label={`جزئیات ${t().key}: ${t().title}`} onClick={() => openTask(t().key)}>
 						{t().title}
-					</span>
+					</button>
 					<Show
 						when={t().external_status}
 						fallback={
@@ -136,16 +140,27 @@ export function TaskRow(props: { task: Task & { children?: Task[]; project_key?:
 
 export function QuickAdd(props: { project?: string | null; parent?: string; placeholder?: string }) {
 	let input!: HTMLInputElement;
+	const [saving, setSaving] = createSignal(false);
 	const submit = async (e: Event) => {
 		e.preventDefault();
 		const title = input.value.trim();
-		if (!title) return;
-		input.value = "";
-		await rpc("createTasks", props.project ?? null, [{ title }], props.parent);
+		if (!title || saving()) return;
+		setSaving(true);
+		try {
+			const created = await rpc<Task[]>("createTasks", props.project ?? null, [{ title }], props.parent);
+			if (!created?.length) throw new Error("کار ساخته نشد.");
+			input.value = "";
+			toast(`کار «${title}» اضافه شد`, "win");
+		} catch (error) {
+			toast(error instanceof Error ? `کار ذخیره نشد: ${error.message}` : "کار ذخیره نشد؛ دوباره تلاش کن.", "error");
+		} finally {
+			setSaving(false);
+			input.focus();
+		}
 	};
 	return (
-		<form onSubmit={submit} class="row" style={{ "margin-top": "6px" }}>
-			<TextInput ref={input} placeholder={props.placeholder ?? "+ تسک جدید… (Enter)"} />
+		<form onSubmit={submit} class="row task-quick-add" style={{ "margin-top": "6px" }}>
+			<TextInput ref={input} disabled={saving()} aria-label="عنوان کار تازه" placeholder={saving() ? "در حال ثبت…" : props.placeholder ?? "+ تسک جدید… (Enter)"} />
 		</form>
 	);
 }

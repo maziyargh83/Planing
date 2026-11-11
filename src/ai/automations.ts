@@ -1,5 +1,5 @@
-import { GaamError, type Automation } from "../core/types.ts";
-import { Planner } from "../core/planner.ts";
+import { GaamError, type Automation } from "../domain/types.ts";
+import { Planner } from "../domain/planner.ts";
 import { gitSync } from "../integrations/git.ts";
 import { jiraBoardSync, jiraConfigured, jiraPull, savedBoard } from "../integrations/jira.ts";
 import type { Assistant } from "./assistant.ts";

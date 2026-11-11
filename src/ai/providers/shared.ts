@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { createInterface } from "node:readline";
 
-import type { Db } from "../../core/db.ts";
+import type { Db } from "../../storage/db.ts";
 import type { AiLimits } from "../limits.ts";
 import type { ChatEvent } from "../protocol.ts";
 import type { ToolBridge } from "../tools.ts";
@@ -78,7 +78,7 @@ export function which(name: string, extra: string[] = []): string | null {
 export function gaamServer(db: Db, actor: string, workspace?: string | null) {
 	return {
 		command: process.execPath,
-		args: ["--disable-warning=ExperimentalWarning", `--env-file-if-exists=${ROOT}.env`, `${ROOT}src/mcp/stdio.ts`],
+		args: ["--disable-warning=ExperimentalWarning", `--env-file-if-exists=${ROOT}.env`, `${ROOT}src/transports/mcp/stdio.ts`],
 		env: { GAAM_DB: db.location() ?? "", GAAM_ACTOR: actor, ...(workspace ? { GAAM_WORKSPACE: workspace } : {}) },
 	};
 }

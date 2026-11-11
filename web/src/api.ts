@@ -3,9 +3,9 @@ import { createSignal, startTransition } from "solid-js";
 
 import { toaster } from "~/components/ui/toast";
 
-import type { GaamEvent } from "../../src/core/types.ts";
+import type { GaamEvent } from "../../src/domain/types.ts";
 
-export type * from "../../src/core/types.ts";
+export type * from "../../src/domain/types.ts";
 
 export class ApiError extends Error {
 	code: string;
@@ -40,7 +40,7 @@ export function wsHeaders(extra: Record<string, string> = {}): Record<string, st
 	return workspace() === "all" ? extra : { ...extra, "x-gaam-workspace": workspace() };
 }
 
-/** Calls a Planner method on the server. Names match src/core/planner.ts one to one. */
+/** Calls a Planner method on the server. Names match src/domain/planner.ts one to one. */
 export async function rpc<T = any>(method: string, ...args: unknown[]): Promise<T> {
 	const res = await fetch("/api/rpc", {
 		method: "POST",

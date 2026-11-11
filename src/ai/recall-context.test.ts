@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openDb } from "../core/db.ts";
-import { Planner } from "../core/planner.ts";
-import { Knowledge } from "../core/knowledge.ts";
+import { openDb } from "../storage/db.ts";
+import { Planner } from "../domain/planner.ts";
+import { Knowledge } from "../domain/knowledge.ts";
 import { boundedHistory, buildRecallContext } from "./recall-context.ts";
 import { applyEvent, messageText } from "./protocol.ts";
 import { needsApproval } from "./tools.ts";

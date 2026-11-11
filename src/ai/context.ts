@@ -1,6 +1,6 @@
-import { Growth } from "../core/growth.ts";
-import { Knowledge } from "../core/knowledge.ts";
-import type { Planner } from "../core/planner.ts";
+import { Growth } from "../domain/growth.ts";
+import { Knowledge } from "../domain/knowledge.ts";
+import type { Planner } from "../domain/planner.ts";
 import type { ContextRef } from "./protocol.ts";
 
 const MAX_DOC = 12_000;

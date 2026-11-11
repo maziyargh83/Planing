@@ -319,10 +319,34 @@ export function AssistantPage(props: { initialContext?: ContextRef[]; compact?: 
 		setEffort(t?.effort ?? s.settings.effort ?? "medium");
 	});
 	// Stick to the bottom while streaming unless the user scrolled up to read.
+	// Any upward scroll unsticks at once: a distance threshold alone loses to
+	// tokens arriving faster than the user can scroll past it.
+	let thread!: HTMLDivElement;
+	let lastTop = 0;
+	const toBottom = () => {
+		if (!scroller) return;
+		scroller.scrollTop = scroller.scrollHeight;
+		lastTop = scroller.scrollTop;
+	};
+	const onScroll = () => {
+		const top = scroller.scrollTop;
+		const gap = scroller.scrollHeight - top - scroller.clientHeight;
+		// Content shrinking also lowers scrollTop, but then we are still at the bottom.
+		if (top < lastTop - 1 && gap > 2) setStuck(false);
+		else if (gap < 24) setStuck(true);
+		lastTop = top;
+	};
+	const unstickUp = (e: WheelEvent) => e.deltaY < 0 && scroller.scrollTop > 0 && setStuck(false);
 	createEffect(() => {
 		void chat.state.messages.length;
-		void chat.state.seq;
-		if (stuck()) queueMicrotask(() => scroller && (scroller.scrollTop = scroller.scrollHeight));
+		if (stuck()) queueMicrotask(toBottom);
+	});
+	// Height changes that are not new events (reasoning collapsing, the footer appearing, images) still follow.
+	onMount(() => {
+		const ro = new ResizeObserver(() => stuck() && toBottom());
+		ro.observe(thread);
+		ro.observe(scroller);
+		onCleanup(() => ro.disconnect());
 	});
 
 	const remember = (p: string, m: string | null) => {
@@ -522,7 +546,8 @@ export function AssistantPage(props: { initialContext?: ContextRef[]; compact?: 
 				<div
 					class="chat-scroll"
 					ref={scroller}
-					onScroll={() => setStuck(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80)}
+					onScroll={onScroll}
+					onWheel={unstickUp}
 				>
 					<Show when={!threadId() && !chat.state.messages.length}>
 						<div class="chat-empty">
@@ -549,29 +574,31 @@ export function AssistantPage(props: { initialContext?: ContextRef[]; compact?: 
 							</div>
 						</div>
 					</Show>
-					<For each={chat.state.messages}>
-						{(m: ChatMessage, i) =>
-							m.role === "user" ? (
-								<UserBubble m={m} onEdit={() => editAndResend(m)} />
-							) : (
-								<BotBlock
-									m={m}
-									last={i() === chat.state.messages.length - 1}
-									startedAt={chat.state.startedAt}
-									onApprove={(id, ok) => void chat.approve(id, ok)}
-									onRegenerate={() => void chat.regenerate({ provider: provider(), model: model(), effort: current()?.effort ? effort() : null })}
-									onFork={async () => {
-										const id = await chat.fork(m.id);
-										refetchThreads();
-										openThread(id);
-									}}
-								/>
-							)
-						}
-					</For>
+					<div class="chat-thread" ref={thread}>
+						<For each={chat.state.messages}>
+							{(m: ChatMessage, i) =>
+								m.role === "user" ? (
+									<UserBubble m={m} onEdit={() => editAndResend(m)} />
+								) : (
+									<BotBlock
+										m={m}
+										last={i() === chat.state.messages.length - 1}
+										startedAt={chat.state.startedAt}
+										onApprove={(id, ok) => void chat.approve(id, ok)}
+										onRegenerate={() => void chat.regenerate({ provider: provider(), model: model(), effort: current()?.effort ? effort() : null })}
+										onFork={async () => {
+											const id = await chat.fork(m.id);
+											refetchThreads();
+											openThread(id);
+										}}
+									/>
+								)
+							}
+						</For>
+					</div>
 				</div>
 				<Show when={!stuck()}>
-					<button type="button" class="chat-jump" onClick={() => (setStuck(true), (scroller.scrollTop = scroller.scrollHeight))}>
+					<button type="button" class="chat-jump" onClick={() => (setStuck(true), toBottom())}>
 						↓
 					</button>
 				</Show>

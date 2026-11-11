@@ -1,5 +1,5 @@
-import type { Db } from "../core/db.ts";
-import { GaamError } from "../core/types.ts";
+import type { Db } from "../storage/db.ts";
+import { GaamError } from "../domain/types.ts";
 
 /**
  * The user's assistant limits: per-response and per-turn caps the providers

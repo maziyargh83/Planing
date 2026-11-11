@@ -1,6 +1,6 @@
-import type { Planner } from "../src/core/planner.ts";
-import { Knowledge } from "../src/core/knowledge.ts";
-import { Growth } from "../src/core/growth.ts";
+import type { Planner } from "../src/domain/planner.ts";
+import { Knowledge } from "../src/domain/knowledge.ts";
+import { Growth } from "../src/domain/growth.ts";
 
 /** Synthetic data only: evals never read ~/.gaam/gaam.db. */
 export function seedEvaluation(p: Planner) {

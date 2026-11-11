@@ -1,5 +1,5 @@
-import { Growth } from "../core/growth.ts";
-import { localDay, type Planner } from "../core/planner.ts";
+import { Growth } from "../domain/growth.ts";
+import { localDay, type Planner } from "../domain/planner.ts";
 import { gitActivity, openReviews } from "./git.ts";
 import { jiraConfigured, jiraTeamIssues, savedBoard } from "./jira.ts";
 

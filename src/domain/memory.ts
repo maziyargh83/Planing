@@ -1,5 +1,5 @@
 import type { Planner } from "./planner.ts";
-import { tx } from "./db.ts";
+import { tx } from "../storage/db.ts";
 import { GaamError, MEMORY_TOPICS, type MemoryTopic } from "./types.ts";
 import { normalize } from "../retrieval/text.ts";
 

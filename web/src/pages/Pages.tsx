@@ -397,7 +397,7 @@ export function Connect() {
 	return (
 		<Show when={info()}>
 			{(i) => {
-				const stdio = ["--disable-warning=ExperimentalWarning", `--env-file-if-exists=${i().root}/.env`, `${i().root}/src/mcp/stdio.ts`];
+				const stdio = ["--disable-warning=ExperimentalWarning", `--env-file-if-exists=${i().root}/.env`, `${i().root}/src/transports/mcp/stdio.ts`];
 				const json = JSON.stringify({ mcpServers: { gaam: { command: "node", args: stdio } } }, null, 2);
 				return (
 					<>

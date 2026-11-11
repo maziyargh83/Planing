@@ -1,5 +1,5 @@
-import { openDb } from "../src/core/db.ts";
-import { Planner } from "../src/core/planner.ts";
+import { openDb } from "../src/storage/db.ts";
+import { Planner } from "../src/domain/planner.ts";
 import { Recall } from "../src/retrieval/recall.ts";
 import { seedEvaluation } from "./fixtures.ts";
 

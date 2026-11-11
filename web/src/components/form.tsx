@@ -43,12 +43,15 @@ export function SaveIndicator() {
 
 // ── Field shell ────────────────────────────────────────────────────────────
 
-export function Field(props: { label: string; hint?: string; help?: JSX.Element; children: JSX.Element; class?: string; wide?: boolean }) {
+export function Field(props: { label: string; hint?: string; help?: JSX.Element; error?: string; required?: boolean; id?: string; children: JSX.Element; class?: string; wide?: boolean }) {
 	const [open, setOpen] = createSignal(false);
 	return (
-		<div class={`ff ${props.class ?? ""}`} classList={{ wide: props.wide }}>
+		<div id={props.id} class={`ff ${props.class ?? ""}`} data-invalid={Boolean(props.error)} classList={{ wide: props.wide }}>
 			<div class="ff-label">
 				<span>{props.label}</span>
+				<Show when={props.required}>
+					<span class="ff-required" aria-label="الزامی">لازم</span>
+				</Show>
 				<Show when={props.help}>
 					<button type="button" class="ff-help" title="راهنما" onClick={() => setOpen(!open())}>
 						؟
@@ -59,6 +62,9 @@ export function Field(props: { label: string; hint?: string; help?: JSX.Element;
 				<div class="ff-helpbox">{props.help}</div>
 			</Show>
 			{props.children}
+			<Show when={props.error}>
+				<div class="ff-error" role="alert">{props.error}</div>
+			</Show>
 			<Show when={props.hint}>
 				<div class="ff-hint">{props.hint}</div>
 			</Show>
@@ -76,11 +82,11 @@ export interface PillOption<T extends string | number> {
 	tone?: "green" | "amber" | "red" | "blue" | "violet" | "gray";
 }
 
-export function Pills<T extends string | number>(props: { value: T | null | undefined; options: PillOption<T>[]; onChange: (v: T) => void; size?: "sm" | "md"; label?: string }) {
+export function Pills<T extends string | number>(props: { value: T | null | undefined; options: PillOption<T>[]; onChange: (v: T) => void; size?: "sm" | "md"; label?: string; invalid?: boolean }) {
 	const current = () => props.options.find((o) => o.value === props.value);
 	return (
 		<div>
-			<div class="pills" classList={{ sm: props.size === "sm" }} role="radiogroup" aria-label={props.label}>
+			<div class="pills" classList={{ sm: props.size === "sm" }} role="radiogroup" aria-label={props.label} aria-invalid={props.invalid}>
 				<For each={props.options}>
 					{(o) => (
 						<button
@@ -184,7 +190,7 @@ function MonthGrid(props: { value: string | null; onPick: (iso: string) => void 
 	);
 }
 
-export function DateField(props: { value: string | null | undefined; onChange: (iso: string | null) => void; placeholder?: string; allowClear?: boolean }) {
+export function DateField(props: { value: string | null | undefined; onChange: (iso: string | null) => void; placeholder?: string; allowClear?: boolean; invalid?: boolean }) {
 	const [open, setOpen] = createSignal(false);
 	const quick = () => [
 		{ label: "امروز", iso: isoOf(new Date()) },
@@ -200,7 +206,7 @@ export function DateField(props: { value: string | null | undefined; onChange: (
 	const overdue = () => props.value && props.value < isoOf(new Date());
 	return (
 		<Popover.Root open={open()} onOpenChange={(e) => setOpen(e.open)} positioning={{ placement: "bottom-start" }} lazyMount>
-			<Popover.Trigger class="datef" classList={{ empty: !props.value, overdue: Boolean(overdue()) }}>
+			<Popover.Trigger class="datef" aria-invalid={props.invalid} classList={{ empty: !props.value, overdue: Boolean(overdue()) }}>
 				<span>📅</span>
 				<Show when={props.value} fallback={<span class="faint">{props.placeholder ?? "بدون تاریخ"}</span>}>
 					<span>{longDate(props.value!)}</span>
@@ -306,7 +312,7 @@ export function ScoreField(props: { kind: "impact" | "confidence" | "ease"; valu
 const [people] = createResource(() => rpc<{ id: number; name: string; relation: string }[]>("people").catch(() => []));
 export { people };
 
-export function PersonField(props: { value: string | null | undefined; onChange: (name: string | null) => void; placeholder?: string }) {
+export function PersonField(props: { value: string | null | undefined; onChange: (name: string | null) => void; placeholder?: string; invalid?: boolean }) {
 	const [query, setQuery] = createSignal("");
 	const [focus, setFocus] = createSignal(false);
 	const matches = createMemo(() => {
@@ -323,6 +329,7 @@ export function PersonField(props: { value: string | null | undefined; onChange:
 				fallback={
 					<input
 						class="personf-input"
+						aria-invalid={props.invalid}
 						placeholder={props.placeholder ?? "اسم را بنویس (فارسی یا انگلیسی)…"}
 						value={query()}
 						onInput={(e) => setQuery(e.currentTarget.value)}

@@ -1,5 +1,5 @@
-import type { Planner } from "../core/planner.ts";
-import { GaamError, type Task, type TaskStatus } from "../core/types.ts";
+import type { Planner } from "../domain/planner.ts";
+import { GaamError, type Task, type TaskStatus } from "../domain/types.ts";
 
 /**
  * Jira Cloud (JIRA_EMAIL + API token, basic auth) or Jira Server/Data Center

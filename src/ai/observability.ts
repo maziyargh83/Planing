@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Planner } from "../core/planner.ts";
+import type { Planner } from "../domain/planner.ts";
 
 /** Local traces always work. Export is opt-in and contains metadata only, never prompts/documents. */
 export class RunTrace {

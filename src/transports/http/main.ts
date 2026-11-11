@@ -4,23 +4,24 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
-import { Assistant } from "../ai/assistant.ts";
-import type { ChatEvent } from "../ai/protocol.ts";
-import { Scheduler } from "../ai/automations.ts";
-import { startOllama } from "../ai/providers/index.ts";
-import { context, insights, nudges } from "../core/coach.ts";
-import { openDb } from "../core/db.ts";
-import { formatStandup, Growth } from "../core/growth.ts";
-import { Knowledge } from "../core/knowledge.ts";
-import { standupContext, teamStatus } from "../integrations/standup.ts";
-import { Planner } from "../core/planner.ts";
-import { GaamError } from "../core/types.ts";
-import { branchName, detectRepos, gitActivity, gitSync, integrationStatus, openReviews } from "../integrations/git.ts";
-import { overview } from "../integrations/overview.ts";
-import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraPull, jiraSearch, savedBoard } from "../integrations/jira.ts";
+import { Assistant } from "../../ai/assistant.ts";
+import type { ChatEvent } from "../../ai/protocol.ts";
+import { Scheduler } from "../../ai/automations.ts";
+import { startOllama } from "../../ai/providers/index.ts";
+import { context, insights, nudges } from "../../domain/coach.ts";
+import { openDb } from "../../storage/db.ts";
+import { formatStandup, Growth } from "../../domain/growth.ts";
+import { Knowledge } from "../../domain/knowledge.ts";
+import { standupContext, teamStatus } from "../../integrations/standup.ts";
+import { Planner } from "../../domain/planner.ts";
+import { GaamError } from "../../domain/types.ts";
+import { branchName, detectRepos, gitActivity, gitSync, integrationStatus, openReviews } from "../../integrations/git.ts";
+import { overview } from "../../integrations/overview.ts";
+import { configureBoard, jiraBoardInfo, jiraBoardSync, jiraPull, jiraSearch, savedBoard } from "../../integrations/jira.ts";
 import { createMcpServer } from "../mcp/server.ts";
+import { extensionOrigins, originAllowed } from "./origin.ts";
 
-process.chdir(new URL("../..", import.meta.url).pathname);
+process.chdir(new URL("../../..", import.meta.url).pathname);
 
 const PORT = Number(process.env.GAAM_PORT ?? 4777);
 const HOST = process.env.GAAM_HOST ?? "127.0.0.1";
@@ -53,7 +54,7 @@ function extras(me: Planner): Record<string, (...args: never[]) => unknown> {
 	return {
 	context: () => context(me),
 	insights: (days?: number) => ({ ...insights(me, days ?? 7), nudges: nudges(me) }),
-	integrations: () => ({ ...integrationStatus(), mcp: `http://localhost:${PORT}/mcp`, root: process.cwd() }),
+	integrations: () => ({ ...integrationStatus(), jira_url: process.env.JIRA_URL?.replace(/\/$/, "") || null, mcp: `http://localhost:${PORT}/mcp`, root: process.cwd() }),
 	jiraSearch: (jql: string) => jiraSearch(jql),
 	jiraPull: () => jiraPull(me),
 	jiraBoard: async () => {
@@ -117,10 +118,11 @@ function extras(me: Planner): Record<string, (...args: never[]) => unknown> {
 
 const app = new Hono();
 
-/** Only same-machine pages may talk to the API: blocks DNS-rebinding and drive-by requests. */
+const EXTENSIONS = extensionOrigins(process.env.GAAM_EXTENSION_ORIGIN);
+
+/** Only same-machine pages (and Gaam's own new-tab extension, when named) may talk to the API: blocks DNS-rebinding and drive-by requests. */
 app.use("*", async (c, next) => {
-	const origin = c.req.header("origin");
-	if (origin && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) return c.text("Forbidden origin", 403);
+	if (!originAllowed(c.req.header("origin"), EXTENSIONS)) return c.text("Forbidden origin", 403);
 	const token = process.env.GAAM_TOKEN;
 	if (token && c.req.path.startsWith("/mcp") && c.req.header("authorization") !== `Bearer ${token}`)
 		return c.text("Unauthorized", 401);
@@ -156,7 +158,7 @@ app.post("/api/files", async (c) => {
 	const form = await c.req.parseBody({ all: true });
 	const files = ([] as unknown[]).concat(form.file ?? []).filter((f): f is File => f instanceof File);
 	if (!files.length) return c.json({ error: { code: "INVALID", message: "No file" } }, 400);
-	const kind = typeof form.kind === "string" && form.kind ? (form.kind as import("../core/knowledge.ts").DocKind) : undefined;
+	const kind = typeof form.kind === "string" && form.kind ? (form.kind as import("../../domain/knowledge.ts").DocKind) : undefined;
 	const docs = [];
 	const knowledge = new Knowledge(scoped(c.req.header("x-gaam-workspace")));
 	for (const file of files) docs.push(await knowledge.ingestUpload(file.name, new Uint8Array(await file.arrayBuffer()), { kind }));
